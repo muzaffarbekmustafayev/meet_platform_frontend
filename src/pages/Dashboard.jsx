@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../api';
 
 const Dashboard = () => {
     const [roomID, setRoomID] = useState('');
+    const [meetingTitle, setMeetingTitle] = useState('');
     const [loading, setLoading] = useState(false);
     const [history, setHistory] = useState([]);
     const navigate = useNavigate();
@@ -11,10 +12,7 @@ const Dashboard = () => {
 
     const fetchHistory = async () => {
         try {
-            const config = {
-                headers: { Authorization: `Bearer ${userInfo.token}` },
-            };
-            const { data } = await axios.get('http://localhost:5000/api/meetings', config);
+            const { data } = await API.get('/api/meetings');
             setHistory(data);
         } catch (error) {
             console.error('Failed to fetch history');
@@ -29,10 +27,7 @@ const Dashboard = () => {
         e.stopPropagation();
         if (window.confirm('Are you sure you want to delete this meeting from your history?')) {
             try {
-                const config = {
-                    headers: { Authorization: `Bearer ${userInfo.token}` },
-                };
-                await axios.delete(`http://localhost:5000/api/meetings/${id}`, config);
+                await API.delete(`/api/meetings/${id}`);
                 fetchHistory();
             } catch (error) {
                 alert('Failed to delete meeting');
@@ -49,11 +44,9 @@ const Dashboard = () => {
     const handleCreateRoom = async () => {
         setLoading(true);
         try {
-            const config = {
-                headers: { Authorization: `Bearer ${userInfo.token}` },
-            };
-            const { data } = await axios.post('http://localhost:5000/api/meetings', { title: `${userInfo.name}'s Meeting` }, config);
+            const { data } = await API.post('/api/meetings', { title: meetingTitle || `${userInfo.name}'s Meeting` });
             navigate(`/room/${data.meetingCode}`);
+            setMeetingTitle('');
         } catch (error) {
             alert('Failed to create meeting');
         } finally {
@@ -174,14 +167,23 @@ const Dashboard = () => {
                                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-900 mb-2">New Meeting</h3>
-                                <p className="text-sm text-slate-500 mb-6">Start a new uchrashuv instantly and invite others to join.</p>
-                                <button
-                                    onClick={handleCreateRoom}
-                                    disabled={loading}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition-colors disabled:bg-blue-400"
-                                >
-                                    {loading ? 'Processing...' : 'Create Meeting'}
-                                </button>
+                                <p className="text-sm text-slate-500 mb-6">Give your meeting a name and start instantly.</p>
+                                <div className="space-y-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Meeting Title (Optional)"
+                                        value={meetingTitle}
+                                        onChange={(e) => setMeetingTitle(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all text-sm font-medium"
+                                    />
+                                    <button
+                                        onClick={handleCreateRoom}
+                                        disabled={loading}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition-colors disabled:bg-blue-400"
+                                    >
+                                        {loading ? 'Processing...' : 'Create Meeting'}
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Join Meeting Card */}

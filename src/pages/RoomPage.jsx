@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import Peer from 'simple-peer';
-import axios from 'axios';
+import API from '../api';
 
-const socket = io('http://localhost:5000');
+const socket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000');
 
 const RoomPage = () => {
     const { id: roomID } = useParams();
@@ -77,7 +77,7 @@ const RoomPage = () => {
 
         const fetchMeeting = async () => {
             try {
-                const { data } = await axios.get(`http://localhost:5000/api/meetings/${roomID}`);
+                const { data } = await API.get(`/api/meetings/${roomID}`);
                 setMeeting(data);
             } catch (error) {
                 alert('Meeting not found');
@@ -628,8 +628,7 @@ const RoomPage = () => {
 
     const promoteCoHost = async (targetUserId, targetSocketId) => {
         try {
-            const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
-            await axios.post(`http://localhost:5000/api/meetings/${meeting._id}/cohost`, { userId: targetUserId }, config);
+            await API.post(`/api/meetings/${meeting._id}/cohost`, { userId: targetUserId });
             socket.emit('promote-cohost', { roomId: roomID, targetUserId, targetSocketId });
         } catch (error) {
             alert('Failed to promote user');
@@ -638,8 +637,7 @@ const RoomPage = () => {
 
     const demoteCoHost = async (targetUserId, targetSocketId) => {
         try {
-            const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
-            await axios.delete(`http://localhost:5000/api/meetings/${meeting._id}/cohost`, { data: { userId: targetUserId }, ...config });
+            await API.delete(`/api/meetings/${meeting._id}/cohost`, { data: { userId: targetUserId } });
             socket.emit('demote-cohost', { roomId: roomID, targetUserId, targetSocketId });
         } catch (error) {
             alert('Failed to demote user');

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import API from '../api';
 import { useNavigate, Link } from 'react-router-dom';
 
 const LoginPage = () => {
@@ -11,7 +11,7 @@ const LoginPage = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const { data } = await axios.post('http://localhost:5000/api/users/login', { email, password });
+            const { data } = await API.post('/api/users/login', { email, password });
             localStorage.setItem('userInfo', JSON.stringify(data));
             window.location.reload(); 
         } catch (err) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import API from '../api';
 import { useNavigate, Link } from 'react-router-dom';
 
 const RegisterPage = () => {
@@ -21,7 +21,7 @@ const RegisterPage = () => {
         }
 
         try {
-            const { data } = await axios.post('http://localhost:5000/api/users/register', { name, email, password, role });
+            const { data } = await API.post('/api/users/register', { name, email, password, role });
             localStorage.setItem('userInfo', JSON.stringify(data));
             window.location.reload();
         } catch (err) {
