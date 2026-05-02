@@ -4,7 +4,9 @@ import io from 'socket.io-client';
 import Peer from 'simple-peer';
 import API from '../api';
 
-const socket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000');
+const socket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:5005');
+
+import Video from '../components/Video';
 
 const RoomPage = () => {
     const { id: roomID } = useParams();
@@ -39,6 +41,9 @@ const RoomPage = () => {
     const [isWaitingForPermission, setIsWaitingForPermission] = useState(false);
     const [currentTurnUserId, setCurrentTurnUserId] = useState(null);
     const [activeSharingUser, setActiveSharingUser] = useState(null);
+    const [audioDevices, setAudioDevices] = useState([]);
+    const [selectedAudioDevice, setSelectedAudioDevice] = useState('');
+    const [showSettings, setShowSettings] = useState(false);
     const [shareRequests, setShareRequests] = useState([]); // For Host/Co-host
     const [isShareApproved, setIsShareApproved] = useState(false); // For Participants
     const [requestPending, setRequestPending] = useState(false);
@@ -56,6 +61,7 @@ const RoomPage = () => {
     const streamRef = useRef(null);
     const audioContextRef = useRef(null);
     const audioDestinationRef = useRef(null);
+    const [showShareMenu, setShowShareMenu] = useState(false);
     const messagesEndRef = useRef(null);
 
     const scrollToBottom = () => {
@@ -92,9 +98,7 @@ const RoomPage = () => {
 
         if (socket.connected) handleConnect();
 
-        socket.on('connect', handleConnect);
-        socket.on('connect', handleConnect);
-        socket.on('message', (message) => {
+        socket.on('chat-message', (message) => {
             setMessages((prev) => [...prev, message]);
             if (!showChat) setUnreadMessages(prev => prev + 1);
         });
@@ -237,8 +241,11 @@ const RoomPage = () => {
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const videoIn = devices.filter(device => device.kind === 'videoinput');
+                const audioIn = devices.filter(device => device.kind === 'audioinput');
                 setVideoDevices(videoIn);
-                if (videoIn.length > 0) setSelectedVideoDevice(videoIn[0].deviceId);
+                setAudioDevices(audioIn);
+                if (videoIn.length > 0 && !selectedVideoDevice) setSelectedVideoDevice(videoIn[0].deviceId);
+                if (audioIn.length > 0 && !selectedAudioDevice) setSelectedAudioDevice(audioIn[0].deviceId);
             } catch (err) {
                 console.error("Media access denied:", err);
                 const isGuest = userInfo.role === 'guest' || userInfo._id?.startsWith('guest-');
@@ -250,7 +257,7 @@ const RoomPage = () => {
         return () => {
             socket.off('connect');
             socket.off('update-user-list');
-            socket.off('message');
+            socket.off('chat-message');
             socket.off('previous-messages');
             socket.off('user-hand-raised');
             socket.off('user-disconnected');
@@ -278,7 +285,7 @@ const RoomPage = () => {
             socket.emit('leave-room');
         };
     }, [roomID, navigate]);
-    
+
     useEffect(() => {
         if (!isInWaitingRoom && stream && userVideo.current && !isSharingScreen) {
             userVideo.current.srcObject = stream;
@@ -346,15 +353,19 @@ const RoomPage = () => {
 
     const switchCamera = async (deviceId) => {
         try {
-            const newStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId }, audio: true });
+            const constraints = { 
+                video: { deviceId: { exact: deviceId } }, 
+                audio: selectedAudioDevice ? { deviceId: { exact: selectedAudioDevice } } : true 
+            };
+            const newStream = await navigator.mediaDevices.getUserMedia(constraints);
             const videoTrack = newStream.getVideoTracks()[0];
             const oldTrack = streamRef.current.getVideoTracks()[0];
 
             peersRef.current.forEach(({ peer }) => {
-                peer.replaceTrack(oldTrack, videoTrack, streamRef.current);
+                if (oldTrack && videoTrack) peer.replaceTrack(oldTrack, videoTrack, streamRef.current);
             });
 
-            oldTrack.stop();
+            if (oldTrack) oldTrack.stop();
             streamRef.current.removeTrack(oldTrack);
             streamRef.current.addTrack(videoTrack);
 
@@ -362,6 +373,29 @@ const RoomPage = () => {
             setSelectedVideoDevice(deviceId);
         } catch (err) {
             console.error("Camera switch failed:", err);
+        }
+    };
+
+    const switchAudio = async (deviceId) => {
+        try {
+            const constraints = { 
+                video: selectedVideoDevice ? { deviceId: { exact: selectedVideoDevice } } : true,
+                audio: { deviceId: { exact: deviceId } } 
+            };
+            const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const audioTrack = newStream.getAudioTracks()[0];
+            const oldTrack = streamRef.current.getAudioTracks()[0];
+
+            peersRef.current.forEach(({ peer }) => {
+                if (oldTrack && audioTrack) peer.replaceTrack(oldTrack, audioTrack, streamRef.current);
+            });
+
+            if (oldTrack) oldTrack.stop();
+            streamRef.current.removeTrack(oldTrack);
+            streamRef.current.addTrack(audioTrack);
+            setSelectedAudioDevice(deviceId);
+        } catch (err) {
+            console.error("Audio switch failed:", err);
         }
     };
 
@@ -408,7 +442,7 @@ const RoomPage = () => {
     const startScreenShare = (type) => {
         if (isSharingScreen) return;
         const constraints = {
-            video: type === 'audio' ? false : { 
+            video: type === 'audio' ? false : {
                 displaySurface: 'monitor',
                 logicalSurface: true,
                 cursor: 'always'
@@ -436,7 +470,7 @@ const RoomPage = () => {
                 const micSource = audioCtx.createMediaStreamSource(new MediaStream([micTrack]));
                 const screenSource = audioCtx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
                 const destination = audioCtx.createMediaStreamDestination();
-                
+
                 // Set gains for better balance (system audio slightly lower if needed)
                 const micGain = audioCtx.createGain();
                 const screenGain = audioCtx.createGain();
@@ -445,7 +479,7 @@ const RoomPage = () => {
 
                 micSource.connect(micGain).connect(destination);
                 screenSource.connect(screenGain).connect(destination);
-                
+
                 audioContextRef.current = audioCtx;
                 audioDestinationRef.current = destination;
                 finalTracks.push(destination.stream.getAudioTracks()[0]);
@@ -462,7 +496,7 @@ const RoomPage = () => {
                     try {
                         const oldVideoTrack = streamRef.current?.getVideoTracks()[0];
                         const oldAudioTrack = streamRef.current?.getAudioTracks()[0];
-                        
+
                         if (screenVideoTrack && oldVideoTrack) {
                             peer.replaceTrack(oldVideoTrack, screenVideoTrack, streamRef.current);
                         }
@@ -568,7 +602,20 @@ const RoomPage = () => {
         }
     };
 
+    const checkGuestAction = () => {
+        if (myRole === 'guest') {
+            if (window.confirm('Guests cannot perform this action. Would you like to log in or register?')) {
+                localStorage.removeItem('userInfo');
+                navigate('/login');
+                window.location.reload();
+            }
+            return true;
+        }
+        return false;
+    };
+
     const handleFileUpload = (e) => {
+        if (checkGuestAction()) return;
         const file = e.target.files[0];
         if (!file) return;
 
@@ -591,9 +638,10 @@ const RoomPage = () => {
 
     const sendMessage = (e) => {
         e.preventDefault();
-        if (!canChat) return alert('Guests are not allowed to chat.');
+        if (checkGuestAction()) return;
+        if (!canChat) return alert('Chat is disabled for this room.');
         if (newMessage.trim()) {
-            socket.emit('chat-message', { roomId: roomID, userId: userInfo._id, userName: userInfo.name, text: newMessage });
+            socket.emit('chat-message', { roomId: roomID, userId: userInfo._id, userName: userInfo.name, message: newMessage });
             setNewMessage('');
         }
     };
@@ -708,12 +756,11 @@ const RoomPage = () => {
                     </div>
                     <h1 className="text-sm md:text-base font-bold text-white tracking-tight truncate">{meeting?.title || 'Preparing Room...'}</h1>
                     {myRole && (
-                        <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${
-                            myRole === 'host' ? 'bg-blue-500/20 border-blue-500 text-blue-400' :
-                            myRole === 'cohost' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' :
-                            myRole === 'guest' ? 'bg-gray-500/20 border-gray-500 text-gray-400' :
-                            'bg-white/10 border-white/20 text-gray-400'
-                        }`}>
+                        <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${myRole === 'host' ? 'bg-blue-500/20 border-blue-500 text-blue-400' :
+                                myRole === 'cohost' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' :
+                                    myRole === 'guest' ? 'bg-gray-500/20 border-gray-500 text-gray-400' :
+                                        'bg-white/10 border-white/20 text-gray-400'
+                            }`}>
                             {myRole}
                         </div>
                     )}
@@ -727,14 +774,13 @@ const RoomPage = () => {
                         </div>
                     </div>
                     <div className="relative group">
-                        <button 
-                            className={`flex flex-col items-center p-3 rounded-2xl transition-all ${
-                                isSharingScreen 
-                                ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' 
-                                : requestPending
-                                ? 'bg-amber-600/20 text-amber-500 border border-amber-500/30'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-                            }`}
+                        <button
+                            className={`flex flex-col items-center p-3 rounded-2xl transition-all ${isSharingScreen
+                                    ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]'
+                                    : requestPending
+                                        ? 'bg-amber-600/20 text-amber-500 border border-amber-500/30'
+                                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                }`}
                         >
                             <div className="relative">
                                 <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -746,7 +792,7 @@ const RoomPage = () => {
                                 {isSharingScreen ? 'Sharing' : requestPending ? 'Pending' : 'Share'}
                             </span>
                         </button>
-                        
+
                         {/* Share Menu Popover */}
                         {!isSharingScreen && !requestPending && (
                             <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-48 bg-[#1a1d23] border border-white/10 rounded-2xl p-2 shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all transform translate-y-2 group-hover:translate-y-0 z-50">
@@ -764,11 +810,11 @@ const RoomPage = () => {
                                 </button>
                             </div>
                         )}
-                        
+
                         {isSharingScreen && (
-                             <button onClick={stopScreenShare} className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-40 bg-red-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                            <button onClick={stopScreenShare} className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-40 bg-red-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
                                 Stop Sharing
-                             </button>
+                            </button>
                         )}
                     </div>
                     <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); }} className="lg:hidden p-2.5 bg-white/5 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all active:scale-90">
@@ -790,12 +836,12 @@ const RoomPage = () => {
                                     (() => {
                                         const stream = remoteStreams[stageUser.socketId];
                                         return stream ? (
-                                            <Video 
+                                            <Video
                                                 key={`${stageUser.socketId}-${activeSharingUser ? 'sharing' : 'normal'}`}
-                                                stream={stream} 
-                                                userName={stageUser.userName} 
-                                                role={stageUser.role || (stageUser.isHost ? 'host' : 'participant')} 
-                                                isStage={true} 
+                                                stream={stream}
+                                                userName={stageUser.userName}
+                                                role={stageUser.role || (stageUser.isHost ? 'host' : 'participant')}
+                                                isStage={true}
                                             />
                                         ) : (
                                             <div className="flex flex-col items-center animate-pulse">
@@ -906,7 +952,7 @@ const RoomPage = () => {
                                         ))}
                                     </div>
                                 )}
-                                
+
                                 {/* Share Requests (Host/Co-host Only) */}
                                 {canModerate && shareRequests.length > 0 && (
                                     <div className="space-y-2 mb-6">
@@ -1071,7 +1117,37 @@ const RoomPage = () => {
                         </button>
                     )}
 
+                    <div className="relative">
+                        <button 
+                            onClick={() => isSharingScreen ? stopScreenShare() : setShowShareMenu(!showShareMenu)} 
+                            className={`group relative p-3 md:p-4 rounded-2xl transition-all duration-500 border ${isSharingScreen ? 'bg-blue-600 border-blue-400 text-white animate-pulse shadow-xl shadow-blue-500/40' : 'bg-white/5 hover:bg-white/10 border-white/5 text-gray-500'}`}
+                        >
+                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        </button>
+
+                        {showShareMenu && !isSharingScreen && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 w-48 bg-[#1e222d] border border-white/10 rounded-[2rem] p-2 shadow-2xl backdrop-blur-3xl animate-in fade-in slide-in-from-bottom-2 duration-300 z-50">
+                                <button onClick={() => { toggleScreenShare('screen'); setShowShareMenu(false); }} className="w-full text-left px-5 py-3 text-[10px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded-2xl transition-all uppercase tracking-widest flex items-center">
+                                    <svg className="w-3.5 h-3.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                    Screen Only
+                                </button>
+                                <button onClick={() => { toggleScreenShare('audio'); setShowShareMenu(false); }} className="w-full text-left px-5 py-3 text-[10px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded-2xl transition-all uppercase tracking-widest flex items-center">
+                                    <svg className="w-3.5 h-3.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5z"></path></svg>
+                                    Audio Only
+                                </button>
+                                <button onClick={() => { toggleScreenShare('both'); setShowShareMenu(false); }} className="w-full text-left px-5 py-3 text-[10px] font-black text-blue-400 hover:text-white hover:bg-blue-600 rounded-2xl transition-all uppercase tracking-widest flex items-center">
+                                    <svg className="w-3.5 h-3.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path></svg>
+                                    Both
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="flex items-center space-x-2 md:space-x-3">
+                        <button onClick={() => setShowSettings(!showSettings)} className={`group relative p-3 md:p-4 rounded-2xl transition-all duration-500 border ${showSettings ? 'bg-slate-700 border-slate-500 text-white shadow-xl' : 'bg-white/5 hover:bg-white/10 border-white/5 text-gray-500 active:scale-90'}`}>
+                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </button>
+
                         <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); }} className={`group relative p-3 md:p-4 rounded-2xl transition-all duration-500 border ${showChat ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.4)]' : 'bg-white/5 hover:bg-white/10 border-white/5 text-gray-500 active:scale-90'}`}>
                             <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
                             {unreadMessages > 0 && <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#12141a] animate-bounce">{unreadMessages}</span>}
@@ -1087,76 +1163,55 @@ const RoomPage = () => {
                     <button onClick={leaveRoom} className="bg-gradient-to-br from-red-500 to-rose-700 hover:from-red-600 hover:to-rose-800 text-white px-5 md:px-10 py-2.5 md:py-3 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-[0.2em] transition-all transform active:scale-95 shadow-xl shadow-red-900/40 border border-red-400/20">End Meeting</button>
                 </div>
             </div>
-        </div>
-    );
-};
 
-const Video = ({ stream, userName, role, hasTurn, isStage }) => {
-    const ref = useRef();
-    const [isFullScreen, setIsFullScreen] = useState(false);
-    const isHost = role === 'host';
-    const isCoHost = role === 'cohost';
+            {/* Settings Modal */}
+            {showSettings && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+                    <div className="bg-[#1e222d] border border-white/10 rounded-[3rem] w-full max-w-lg p-10 shadow-2xl relative">
+                        <button onClick={() => setShowSettings(false)} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" /></svg>
+                        </button>
+                        
+                        <h2 className="text-2xl font-black text-white mb-2 tracking-tight uppercase">Device Settings</h2>
+                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-10">Configure your hardware interface</p>
 
-    useEffect(() => {
-        if (ref.current && stream) {
-            console.log(`Setting stream for ${userName}`, stream.id);
-            ref.current.srcObject = stream;
-            
-            // Re-bind on track changes
-            const handleTrackChange = () => {
-                if (ref.current) {
-                    ref.current.srcObject = null;
-                    ref.current.srcObject = stream;
-                }
-            };
-            
-            stream.addEventListener('addtrack', handleTrackChange);
-            stream.addEventListener('removetrack', handleTrackChange);
-            
-            return () => {
-                stream.removeEventListener('addtrack', handleTrackChange);
-                stream.removeEventListener('removetrack', handleTrackChange);
-            };
-        }
-    }, [stream, userName, role]);
+                        <div className="space-y-8">
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 px-1">Optical Input (Camera)</label>
+                                <select 
+                                    value={selectedVideoDevice} 
+                                    onChange={(e) => switchCamera(e.target.value)}
+                                    className="w-full bg-black/20 border-2 border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
+                                >
+                                    {videoDevices.map(device => (
+                                        <option key={device.deviceId} value={device.deviceId} className="bg-[#1e222d]">{device.label || `Camera ${device.deviceId.slice(0, 5)}`}</option>
+                                    ))}
+                                </select>
+                            </div>
 
-    const toggleFullScreen = () => {
-        if (!ref.current) return;
-        if (!document.fullscreenElement) {
-            ref.current.requestFullscreen().catch(err => console.error(err));
-            setIsFullScreen(true);
-        } else {
-            document.exitFullscreen();
-            setIsFullScreen(false);
-        }
-    };
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 px-1">Acoustic Input (Microphone)</label>
+                                <select 
+                                    value={selectedAudioDevice} 
+                                    onChange={(e) => switchAudio(e.target.value)}
+                                    className="w-full bg-black/20 border-2 border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
+                                >
+                                    {audioDevices.map(device => (
+                                        <option key={device.deviceId} value={device.deviceId} className="bg-[#1e222d]">{device.label || `Microphone ${device.deviceId.slice(0, 5)}`}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
 
-    return (
-        <div className={`relative w-full h-full bg-[#000] overflow-hidden group transition-all duration-500 ${!isStage ? 'rounded-[2rem] border' : ''} ${isHost ? 'border-blue-500/30 shadow-[0_0_30px_rgba(59,130,246,0.1)]' : hasTurn ? 'border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'border-white/5 hover:border-white/20'}`}>
-            {stream ? (
-                <video playsInline autoPlay ref={ref} className={`w-full h-full transition-transform duration-700 ${isStage ? 'object-contain' : 'object-cover group-hover:scale-105'}`} />
-            ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0d11]">
-                    <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-3"></div>
-                    <span className="text-[8px] font-black text-gray-600 uppercase tracking-[0.2em]">Connecting</span>
+                        <button 
+                            onClick={() => setShowSettings(false)}
+                            className="w-full mt-12 bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[2rem] text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-500/20 active:scale-95"
+                        >
+                            Save Configuration
+                        </button>
+                    </div>
                 </div>
             )}
-
-            {/* Overlays */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-
-            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="flex items-center bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/10 pointer-events-auto">
-                    <div className={`w-1.5 h-1.5 rounded-full mr-2 ${hasTurn ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]' : isHost ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]' : isCoHost ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-gray-500'}`}></div>
-                    <span className="text-[9px] font-black uppercase tracking-tight text-white/90">{userName}</span>
-                    {isHost && <span className="ml-2 text-[8px] text-blue-400 font-black">HOST</span>}
-                    {isCoHost && <span className="ml-2 text-[8px] text-emerald-400 font-black tracking-widest">CO-HOST</span>}
-                </div>
-
-                <button onClick={toggleFullScreen} className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl border border-white/10 text-white/70 hover:text-white transition-all pointer-events-auto active:scale-90">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                </button>
-            </div>
         </div>
     );
 };

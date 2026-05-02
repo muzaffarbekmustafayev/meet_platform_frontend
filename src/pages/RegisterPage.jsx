@@ -6,101 +6,83 @@ const RegisterPage = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [role, setRole] = useState('participant');
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
     const handleRegister = async (e) => {
         e.preventDefault();
-        if (password !== confirmPassword) {
-            return setError('Passwords do not match');
-        }
-        if (password.length < 6) {
-            return setError('Password must be at least 6 characters');
-        }
-
         try {
-            const { data } = await API.post('/api/users/register', { name, email, password, role });
+            const { data } = await API.post('/api/users/register', { name, email, password });
             localStorage.setItem('userInfo', JSON.stringify(data));
-            window.location.reload();
+            window.location.reload(); 
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 py-12">
-            <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-                <h2 className="text-2xl font-bold text-center text-blue-600 mb-8">Register</h2>
-                <form onSubmit={handleRegister} className="space-y-4">
+        <div className="min-h-screen flex items-center justify-center bg-[#f1f5f9] font-sans">
+            <div className="bg-white p-12 rounded-[2.5rem] shadow-2xl shadow-slate-200/60 w-full max-w-md border border-white">
+                <div className="text-center mb-10">
+                    <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-600/20">
+                        <span className="text-white text-2xl font-black">Z</span>
+                    </div>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Create Identity</h2>
+                    <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-2">Join the communication network</p>
+                </div>
+
+                <form onSubmit={handleRegister} className="space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Full Identity Name</label>
                         <input
                             type="text"
-                            placeholder="Enter full name"
+                            placeholder="Full Name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 focus:bg-white focus:border-blue-500/30 outline-none transition-all shadow-sm"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Network Email</label>
                         <input
                             type="email"
-                            placeholder="Enter email"
+                            placeholder="name@example.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 focus:bg-white focus:border-blue-500/30 outline-none transition-all shadow-sm"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Security Key</label>
                         <input
                             type="password"
-                            placeholder="Enter password"
+                            placeholder="••••••••"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 focus:bg-white focus:border-blue-500/30 outline-none transition-all shadow-sm"
                             required
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                        <input
-                            type="password"
-                            placeholder="Confirm password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                        <select
-                            value={role}
-                            onChange={(e) => setRole(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition bg-white"
-                        >
-                            <option value="participant">Participant</option>
-                            <option value="host">Host</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    {error && <p className="text-red-500 text-sm">{error}</p>}
+                    {error && (
+                        <div className="bg-rose-50 text-rose-600 px-4 py-3 rounded-xl text-xs font-bold border border-rose-100">
+                            {error}
+                        </div>
+                    )}
                     <button
                         type="submit"
-                        className="w-full bg-blue-600 text-white py-2 rounded-md font-semibold hover:bg-blue-700 transition duration-200 mt-4"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95"
                     >
-                        Register
+                        Register Node
                     </button>
                 </form>
-                <p className="mt-6 text-center text-sm text-gray-600">
-                    Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Login here</Link>
-                </p>
+
+                <div className="mt-10 pt-6 border-t border-slate-100 text-center">
+                    <p className="text-xs font-bold text-slate-400">
+                        Already Registered? <Link to="/login" className="text-blue-600 hover:underline">Sign In Protocol</Link>
+                    </p>
+                </div>
             </div>
         </div>
     );
