@@ -7,6 +7,7 @@ const Dashboard = () => {
     const [meetingTitle, setMeetingTitle] = useState('');
     const [loading, setLoading] = useState(false);
     const [history, setHistory] = useState([]);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();
     const userInfo = JSON.parse(localStorage.getItem('userInfo'));
 
@@ -65,15 +66,26 @@ const Dashboard = () => {
 
     return (
         <div className="flex h-screen bg-[#f1f5f9] text-slate-800 font-sans overflow-hidden">
+            {/* Mobile Sidebar Overlay */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm" 
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Unified Sidebar */}
-            <aside className="w-72 bg-[#1e293b] text-white flex flex-col shrink-0 shadow-xl">
-                <div className="p-8 border-b border-slate-700/50">
+            <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#1e293b] text-white flex flex-col shrink-0 shadow-2xl md:shadow-xl transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="p-8 border-b border-slate-700/50 flex justify-between items-center">
                     <h1 className="text-xl font-black flex items-center">
                         <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center mr-4">
                             <span className="text-white text-lg font-black">Z</span>
                         </div>
                         HUB
                     </h1>
+                    <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2"></path></svg>
+                    </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto py-8">
@@ -126,13 +138,18 @@ const Dashboard = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto p-12">
-                <header className="mb-12">
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Greetings, {userInfo?.name}!</h2>
-                    <p className="text-slate-500 font-medium italic">Operational status: Ready for communication</p>
+            <main className="flex-1 overflow-y-auto p-6 md:p-12">
+                <header className="mb-8 md:mb-12 flex items-start gap-4">
+                    <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-3 mt-1 bg-white border border-slate-200 rounded-xl shadow-sm text-slate-600 hover:text-blue-600">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2"></path></svg>
+                    </button>
+                    <div>
+                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-2">Greetings, {userInfo?.name}!</h2>
+                        <p className="text-slate-500 font-medium italic text-sm md:text-base">Operational status: Ready for communication</p>
+                    </div>
                 </header>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                     {userInfo?.role === 'host' && (
                         <div className="bg-white p-10 rounded-[3rem] shadow-2xl shadow-slate-200/60 border border-white hover:translate-y-[-4px] transition-all">
                             <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-8 shadow-lg shadow-blue-600/20">
