@@ -5,8 +5,9 @@ import API from '../api';
 const AdminPage = () => {
     const [stats, setStats] = useState(null);
     const [users, setUsers] = useState([]);
+    const [meetings, setMeetings] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('users');
+    const [activeTab, setActiveTab] = useState('overview'); // Fix from 'users'
     const [showModal, setShowModal] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -16,15 +17,18 @@ const AdminPage = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, usersRes] = await Promise.all([
+            const [statsRes, usersRes, meetingsRes] = await Promise.all([
                 API.get('/api/admin/stats'),
-                API.get('/api/admin/users')
+                API.get('/api/admin/users'),
+                API.get('/api/admin/meetings')
             ]);
             setStats(statsRes.data);
             setUsers(usersRes.data || []);
+            setMeetings(meetingsRes.data || []);
         } catch (error) {
             console.error('Failed to fetch admin data', error);
             setUsers([]);
+            setMeetings([]);
         } finally {
             setLoading(false);
         }
@@ -45,6 +49,17 @@ const AdminPage = () => {
             fetchData();
         } catch (error) {
             alert('Action failed');
+        }
+    };
+
+    const handleDeleteMeeting = async (id) => {
+        if (window.confirm("Are you sure you want to delete this meeting?")) {
+            try {
+                await API.delete(`/api/admin/meetings/${id}`);
+                fetchData();
+            } catch (error) {
+                alert('Action failed');
+            }
         }
     };
 
@@ -121,6 +136,20 @@ const AdminPage = () => {
                         <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                         User Directory
                     </button>
+                    <button 
+                        onClick={() => setActiveTab('meetings')}
+                        className={`w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === 'meetings' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                    >
+                        <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        Meetings
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('settings')}
+                        className={`w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                    >
+                        <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        System Settings
+                    </button>
                 </nav>
 
                 <div className="p-6 border-t border-slate-700/50">
@@ -142,10 +171,10 @@ const AdminPage = () => {
                         </button>
                         <div>
                             <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-                                {activeTab === 'overview' ? 'System Analytics' : 'User Management'}
+                                {activeTab === 'overview' ? 'System Analytics' : activeTab === 'users' ? 'User Management' : activeTab === 'meetings' ? 'Meetings History' : 'System Settings'}
                             </h2>
                             <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                {activeTab === 'overview' ? 'Real-time performance metrics' : 'Directory of all registered nodes'}
+                                {activeTab === 'overview' ? 'Real-time performance metrics' : activeTab === 'users' ? 'Directory of all registered nodes' : activeTab === 'meetings' ? 'Platform wide meetings' : 'Platform configurations'}
                             </p>
                         </div>
                     </div>
@@ -174,7 +203,7 @@ const AdminPage = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : (
+                    ) : activeTab === 'users' ? (
                         <div className="bg-white border border-slate-100 shadow-xl shadow-slate-200/60 rounded-[2rem] overflow-hidden overflow-x-auto w-full">
                             <div className="min-w-[800px]">
                                 <table className="w-full text-left border-collapse">
@@ -237,7 +266,74 @@ const AdminPage = () => {
                                 </table>
                             </div>
                         </div>
-                    )}
+                    ) : activeTab === 'meetings' ? (
+                        <div className="bg-white border border-slate-100 shadow-xl shadow-slate-200/60 rounded-[2rem] overflow-hidden overflow-x-auto w-full">
+                            <div className="min-w-[800px]">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 bg-slate-50/30">
+                                            <th className="px-6 py-6 md:px-8 md:py-8">Meeting Info</th>
+                                            <th className="px-6 py-6 md:px-8 md:py-8">Host Details</th>
+                                            <th className="px-8 py-8">Created At</th>
+                                            <th className="px-8 py-8 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {meetings.length > 0 ? meetings.map((m) => (
+                                            <tr key={m._id} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-6 py-6 md:px-8 md:py-8">
+                                                    <div className="flex flex-col">
+                                                        <p className="text-sm font-black text-slate-900 uppercase tracking-wide">{m.title}</p>
+                                                        <p className="text-[10px] text-slate-400 font-medium mt-1">Code: {m.meetingCode}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-6 md:px-8 md:py-8">
+                                                    <p className="text-xs font-bold text-slate-700">{m.hostId?.name || 'Unknown'}</p>
+                                                    <p className="text-[9px] text-slate-400">{m.hostId?.email || ''}</p>
+                                                </td>
+                                                <td className="px-6 py-6 md:px-8 md:py-8 text-xs text-slate-500 font-medium">
+                                                    {new Date(m.createdAt).toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-6 md:px-8 md:py-8 text-right">
+                                                    <button onClick={() => handleDeleteMeeting(m._id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-2.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl shadow-sm">
+                                                        <svg className="w-4 h-4" border="none" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )) : (
+                                            <tr>
+                                                <td colSpan="4" className="px-8 py-20 text-center text-slate-400 font-bold italic">
+                                                    No ongoing or recorded meetings found.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : activeTab === 'settings' ? (
+                        <div className="bg-white border border-slate-100 shadow-xl shadow-slate-200/60 rounded-[2rem] p-8 max-w-2xl">
+                            <h3 className="text-lg font-black text-slate-900 mb-6 uppercase tracking-widest">Global Configurations</h3>
+                            
+                            <div className="space-y-6">
+                                {[
+                                    { title: 'Allow New Registrations', desc: 'Enable or disable account creation capabilities for new users', active: true },
+                                    { title: 'Strict Meeting Passwords', desc: 'Require strong passwords length > 8 for all meetings', active: false },
+                                    { title: 'Maintenance Mode', desc: 'Temporarily disable non-admin access to the portal', active: false }
+                                ].map((setting, i) => (
+                                    <div key={i} className="flex items-center justify-between p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">{setting.title}</h4>
+                                            <p className="text-[10px] text-slate-500 mt-1">{setting.desc}</p>
+                                        </div>
+                                        <button className={`w-12 h-6 flex items-center rounded-full transition-colors ${setting.active ? 'bg-emerald-500 justify-end' : 'bg-slate-300 justify-start'} px-1`}>
+                                            <div className="w-4 h-4 bg-white rounded-full shadow-sm"></div>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             </main>
 

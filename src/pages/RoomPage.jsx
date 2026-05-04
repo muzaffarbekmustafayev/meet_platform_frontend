@@ -24,6 +24,7 @@ const RoomPage = () => {
     const [remoteStreams, setRemoteStreams] = useState({}); // socketId -> stream
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
+    const [editingMessageId, setEditingMessageId] = useState(null);
     const [showChat, setShowChat] = useState(true);
     const [showParticipants, setShowParticipants] = useState(false);
     const [roomUsers, setRoomUsers] = useState([]);
@@ -102,6 +103,14 @@ const RoomPage = () => {
         socket.on('chat-message', (message) => {
             setMessages((prev) => [...prev, message]);
             if (!showChat) setUnreadMessages(prev => prev + 1);
+        });
+
+        socket.on('chat-message-edited', ({ _id, newText }) => {
+            setMessages(prev => prev.map(m => m._id === _id ? { ...m, text: newText } : m));
+        });
+
+        socket.on('chat-message-deleted', ({ _id }) => {
+            setMessages(prev => prev.filter(m => m._id !== _id));
         });
 
         socket.on('previous-messages', (prevMessages) => {
@@ -650,10 +659,32 @@ const RoomPage = () => {
         e.preventDefault();
         if (checkGuestAction()) return;
         if (!canChat) return alert('Chat is disabled for this room.');
+        
+        if (editingMessageId) {
+            if (newMessage.trim()) {
+                socketRef.current?.emit('edit-chat-message', { roomId: roomID, messageId: editingMessageId, newText: newMessage, userId: userInfo._id });
+            }
+            setEditingMessageId(null);
+            setNewMessage('');
+            return;
+        }
+
         if (newMessage.trim()) {
             socketRef.current?.emit('chat-message', { roomId: roomID, userId: userInfo._id, userName: userInfo.name, message: newMessage });
             setNewMessage('');
         }
+    };
+
+    const deleteChatMessage = (msgId) => {
+        if (window.confirm("Are you sure you want to delete this message?")) {
+            socketRef.current?.emit('delete-chat-message', { roomId: roomID, messageId: msgId, userId: userInfo._id });
+        }
+    };
+    
+    const startEditingMessage = (msgId, text) => {
+        setEditingMessageId(msgId);
+        setNewMessage(text);
+        if (!showChat) setShowChat(true);
     };
 
     const kickUser = (socketId) => {
@@ -1129,7 +1160,7 @@ const RoomPage = () => {
                                                 <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{msg.userName}</span>
                                                 <span className="text-[8px] text-gray-600 font-bold uppercase tracking-tight">{msg.time}</span>
                                             </div>
-                                            <div className={`px-4 py-3 rounded-2xl text-[11px] leading-relaxed max-w-[90%] shadow-xl border ${msg.userName === userInfo.name ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-400/20 rounded-tr-none' : 'bg-white/5 text-slate-300 border-white/10 rounded-tl-none'}`}>
+                                            <div className={`px-4 py-3 rounded-2xl text-[11px] leading-relaxed max-w-[90%] shadow-xl border relative group ${msg.userName === userInfo.name ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-400/20 rounded-tr-none' : 'bg-white/5 text-slate-300 border-white/10 rounded-tl-none'}`}>
                                                 {msg.file ? (
                                                     <div className="flex items-center space-x-4 py-1">
                                                         <div className="w-10 h-10 bg-black/30 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
@@ -1141,6 +1172,24 @@ const RoomPage = () => {
                                                         </div>
                                                     </div>
                                                 ) : msg.text}
+
+                                                {/* Chat message actions (Edit/Delete) */}
+                                                {!msg.file && String(msg.userName) === String(userInfo.name) && (
+                                                    <div className="absolute top-1/2 -translate-y-1/2 right-[102%] hidden group-hover:flex items-center bg-[#1a1d23] rounded-lg border border-white/10 p-1 shadow-lg space-x-1">
+                                                        <button 
+                                                            onClick={() => startEditingMessage(msg._id, msg.text)}
+                                                            className="p-1 hover:bg-white/10 text-gray-400 hover:text-white rounded-md transition-all title='Edit'"
+                                                        >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => deleteChatMessage(msg._id)}
+                                                            className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-500 rounded-md transition-all title='Delete'"
+                                                        >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -1154,8 +1203,19 @@ const RoomPage = () => {
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.414a4 4 0 00-5.656-5.656l-6.415 6.415a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                             </label>
                                             <div className="relative flex-1">
-                                                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Send a message..." className="w-full bg-[#2a2d35] border-none rounded-xl px-4 py-2.5 text-[11px] outline-none focus:ring-1 focus:ring-blue-500/50 transition placeholder:text-gray-600" />
-                                                <button type="submit" className="absolute right-2 top-1.5 p-1.5 text-blue-500 hover:text-blue-400 transition"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg></button>
+                                                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={editingMessageId ? "Edit your message..." : "Send a message..."} className={`w-full bg-[#2a2d35] border-none rounded-xl px-4 py-2.5 text-[11px] outline-none transition placeholder:text-gray-600 ${editingMessageId ? 'focus:ring-1 focus:ring-amber-500/50' : 'focus:ring-1 focus:ring-blue-500/50'}`} />
+                                                <button type="submit" className={`absolute right-2 top-1.5 p-1.5 transition ${editingMessageId ? 'text-amber-500 hover:text-amber-400' : 'text-blue-500 hover:text-blue-400'}`}>
+                                                    {editingMessageId ? (
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                    ) : (
+                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                                                    )}
+                                                </button>
+                                                {editingMessageId && (
+                                                    <button type="button" onClick={() => { setEditingMessageId(null); setNewMessage(''); }} className="absolute right-8 top-1.5 p-1.5 text-gray-500 hover:text-gray-400 transition" title="Cancel Edit">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </form>
@@ -1261,20 +1321,20 @@ const RoomPage = () => {
                             {canRecord && (
                                 <button
                                     onClick={isRecording ? stopRecording : startRecording}
-                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 active:scale-95 min-w-[52px] hidden sm:flex ${
+                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 min-w-[52px] hidden sm:flex ${
                                         isRecording
-                                            ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
-                                            : 'text-gray-300 hover:bg-white/8 hover:text-white'
+                                            ? 'bg-red-600/20 text-red-400 hover:bg-red-600/40 shadow-[0_0_15px_rgba(220,38,38,0.3)]'
+                                            : 'text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]'
                                     }`}
                                 >
                                     <div className="relative">
-                                        <svg className="w-5 h-5" fill={isRecording ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <svg className={`w-5 h-5 ${isRecording ? 'animate-pulse' : ''}`} fill={isRecording ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <circle cx="12" cy="12" r="8"/>
                                             {isRecording && <circle cx="12" cy="12" r="4" fill="currentColor"/>}
                                         </svg>
-                                        {isRecording && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
+                                        {isRecording && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping shadow-[0_0_8px_rgba(239,68,68,0.8)]" />}
                                     </div>
-                                    <span className="text-[9px] font-semibold">{isRecording ? 'Stop Rec' : 'Record'}</span>
+                                    <span className={`text-[9px] font-black uppercase tracking-widest ${isRecording ? 'text-red-400' : ''}`}>{isRecording ? 'Stop Rec' : 'Record'}</span>
                                 </button>
                             )}
 
