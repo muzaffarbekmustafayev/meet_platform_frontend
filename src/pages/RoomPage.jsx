@@ -1,13 +1,27 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import Peer from 'simple-peer';
 import API from '../api';
 import Video from '../components/Video';
+import ChatPanel from '../components/ChatPanel';
+import RoomBottomControls from '../components/room/RoomBottomControls';
+import RoomSettingsModal from '../components/room/RoomSettingsModal';
+import { WaitingRoom, AccessDenied } from '../components/room/RoomScreens';
+import {
+    Mic, MicOff, Video as VideoIcon, VideoOff, MonitorUp, MonitorOff,
+    Circle, StopCircle, Hand, Settings, MessageSquare,
+    Users, Copy, Check, ShieldCheck, Clock, X, Lock, LogOut,
+    Monitor, Volume2, MoreVertical, ChevronDown, PhoneOff
+} from 'lucide-react';
+import LanguageToggle from '../components/LanguageToggle';
+import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
+
 
 const RoomPage = () => {
     const { id: roomID } = useParams();
     const navigate = useNavigate();
+    const { t, lang } = useContext(ThemeLanguageContext);
 
     const userInfo = useMemo(() => {
         const saved = localStorage.getItem('userInfo');
@@ -124,8 +138,10 @@ const RoomPage = () => {
             setMessages(formattedMessages);
         });
 
-        socket.on('user-hand-raised', (userId) => {
+        socket.on('user-hand-raised', ({ userId, userName }) => {
             setHandRaisedUsers((prev) => [...prev, userId]);
+            setToastMessage(`✋ ${userName || 'Someone'} raised their hand`);
+            setTimeout(() => setToastMessage(null), 3000);
             setTimeout(() => setHandRaisedUsers((prev) => prev.filter(id => id !== userId)), 10000);
         });
 
@@ -600,6 +616,8 @@ const RoomPage = () => {
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
                 displayStream.getTracks().forEach(track => track.stop());
+                setToastMessage("💾 Recording saved to your device.");
+                setTimeout(() => setToastMessage(null), 4000);
             };
 
             displayStream.getVideoTracks()[0].onended = () => {
@@ -609,6 +627,8 @@ const RoomPage = () => {
             mediaRecorder.start();
             mediaRecorderRef.current = mediaRecorder;
             setIsRecording(true);
+            setToastMessage("⏺ Recording started locally. Stop it to save.");
+            setTimeout(() => setToastMessage(null), 4000);
         } catch (e) {
             console.error("Recording error or user cancelled:", e);
         }
@@ -710,7 +730,13 @@ const RoomPage = () => {
             setToastMessage(`Foydalanuvchi markaziy ekranga chiqarildi.`);
         }
     };
-    const raiseHand = () => socketRef.current?.emit('hand-raise', { roomId: roomID, userId: userInfo._id });
+    const raiseHand = () => {
+        socketRef.current?.emit('hand-raise', { roomId: roomID, userId: userInfo._id, userName: userInfo.name });
+        setToastMessage(`✋ You raised your hand`);
+        setTimeout(() => setToastMessage(null), 3000);
+        setHandRaisedUsers((prev) => [...prev, userInfo._id]);
+        setTimeout(() => setHandRaisedUsers((prev) => prev.filter(id => id !== userInfo._id)), 10000);
+    };
     const isHost = myRole === 'host';
     const isCoHost = myRole === 'cohost';
     const canModerate = isHost || isCoHost;
@@ -785,125 +811,90 @@ const RoomPage = () => {
 
     const stageUser = getStageUser();
 
-    if (isInWaitingRoom) {
-        return (
-            <div className="h-screen bg-[#0b0d11] flex flex-col items-center justify-center text-white p-6">
-                <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mb-8 animate-pulse border border-blue-500/30">
-                    <svg className="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" /></svg>
-                </div>
-                <h1 className="text-3xl font-black uppercase tracking-widest mb-4">Waiting Room</h1>
-                <p className="text-gray-400 text-center max-w-md font-medium leading-relaxed">
-                    Please wait, the host will admit you shortly. Your microphone and camera are ready.
-                </p>
-                <div className="mt-12 flex space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                </div>
-            </div>
-        );
-    }
-
-    if (waitingRoomDenied) {
-        return (
-            <div className="h-screen bg-[#0b0d11] flex flex-col items-center justify-center text-white p-6">
-                <div className="w-24 h-24 bg-red-500/20 rounded-full flex items-center justify-center mb-8 border border-red-500/30">
-                    <svg className="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="3" /></svg>
-                </div>
-                <h1 className="text-3xl font-black uppercase tracking-widest mb-4">Access Denied</h1>
-                <p className="text-gray-400 text-center max-w-md font-medium leading-relaxed">
-                    The host did not admit you to this meeting.
-                </p>
-                <button onClick={() => navigate('/')} className="mt-12 bg-white text-black px-10 py-3 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-200 transition">Back Home</button>
-            </div>
-        );
-    }
+    if (isInWaitingRoom) return <WaitingRoom />;
+    if (waitingRoomDenied) return <AccessDenied />;
 
     return (
-        <div className="flex flex-col h-screen bg-[#0b0d11] text-white font-sans overflow-hidden">
+        <div className="flex flex-col h-screen bg-gray-100 dark:bg-[#0c0e14] text-gray-900 dark:text-white font-sans overflow-hidden transition-colors">
             {toastMessage && (
-                <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-blue-600/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-[0_0_30px_rgba(37,99,235,0.5)] z-50 animate-in fade-in slide-in-from-top-4 duration-500 font-bold uppercase tracking-widest text-[#FFF] border border-blue-400/50 flex flex-col items-center justify-center">
-                    <div className="flex items-center space-x-3">
-                        <svg className="w-5 h-5 animate-pulse text-[#FFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeWidth="2"></path></svg>
-                        <span className="text-[10px] text-[#FFFFFF]">{toastMessage}</span>
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
+                    <div className="bg-white dark:bg-[#1e222d] border border-gray-200 dark:border-white/10 text-gray-800 dark:text-gray-100 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-sm">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shrink-0" />
+                        <span className="text-sm font-medium">{toastMessage}</span>
                     </div>
                 </div>
             )}
             
             {/* Top Bar */}
-            <header className="h-16 flex justify-between items-center px-4 md:px-8 bg-[#12141a]/80 backdrop-blur-2xl border-b border-white/5 z-40 shadow-2xl relative">
-                <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent"></div>
-                <div className="flex items-center space-x-4 overflow-hidden">
-                    <div className="flex items-center bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20 shrink-0">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-2 shadow-[0_0_10px_rgba(59,130,246,0.6)]"></div>
-                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-400">Live Session</span>
+            <header className="h-14 flex justify-between items-center px-4 md:px-6 bg-white dark:bg-[#13161e]/90 backdrop-blur-xl border-b border-gray-200 dark:border-white/6 z-40 shadow-sm transition-colors">
+                <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="flex items-center bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-500/20 shrink-0">
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse mr-2"></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Jonli seans</span>
                     </div>
-                    <h1 className="text-sm md:text-base font-bold text-white tracking-tight truncate">{meeting?.title || 'Preparing Room...'}</h1>
+                    <h1 className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight truncate">{meeting?.title || 'Xona tayyorlanmoqda...'}</h1>
                     {myRole && (
-                        <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${myRole === 'host' ? 'bg-blue-500/20 border-blue-500 text-blue-400' :
-                                myRole === 'cohost' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' :
-                                    myRole === 'guest' ? 'bg-gray-500/20 border-gray-500 text-gray-400' :
-                                        'bg-white/10 border-white/20 text-gray-400'
+                        <div className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border ${myRole === 'host' ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-500/15 dark:border-blue-500/40 dark:text-blue-400' :
+                                myRole === 'cohost' ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/40 dark:text-emerald-400' :
+                                    myRole === 'guest' ? 'bg-gray-100 border-gray-300 text-gray-600 dark:bg-gray-500/15 dark:border-gray-500/40 dark:text-gray-400' :
+                                        'bg-gray-100 border-gray-200 text-gray-600 dark:bg-white/5 dark:border-white/15 dark:text-gray-400'
                             }`}>
                             {myRole}
                         </div>
                     )}
                 </div>
-                <div className="flex items-center space-x-3 md:space-x-8 shrink-0">
-                    <div className="hidden sm:flex flex-col items-end space-y-0.5">
-                        <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Security</span>
-                        <div className="flex items-center space-x-1.5">
-                            <svg className="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" /></svg>
-                            <span className="text-[10px] font-bold text-emerald-500/80 uppercase">End-to-End Encrypted</span>
+                <div className="flex items-center gap-3 md:gap-6 shrink-0">
+                    <div className="hidden sm:flex flex-col items-end">
+                        <span className="text-[9px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider">Xavfsizlik</span>
+                        <div className="flex items-center gap-1">
+                            <ShieldCheck size={12} className="text-emerald-500" />
+                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-500">Shifrlangan</span>
                         </div>
                     </div>
                     <div className="relative group">
                         <button
-                            className={`flex flex-col items-center p-3 rounded-2xl transition-all ${isSharingScreen
-                                    ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]'
+                            className={`flex flex-col items-center p-2.5 rounded-xl transition-all ${
+                                isSharingScreen
+                                    ? 'bg-blue-600 text-white'
                                     : requestPending
-                                        ? 'bg-amber-600/20 text-amber-500 border border-amber-500/30'
-                                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-                                }`}
+                                        ? 'bg-amber-100 dark:bg-amber-600/15 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30'
+                                        : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white'
+                            }`}
                         >
                             <div className="relative">
-                                <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                    <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                                </svg>
-                                {requestPending && <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full animate-ping"></div>}
+                                {isSharingScreen ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
+                                {requestPending && <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-500 rounded-full animate-ping"></div>}
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest">
-                                {isSharingScreen ? 'Sharing' : requestPending ? 'Pending' : 'Share'}
+                            <span className="text-[9px] font-semibold mt-0.5">
+                                {isSharingScreen ? 'Ulashilmoqda' : requestPending ? 'Kutilmoqda' : 'Ulashish'}
                             </span>
                         </button>
-
-                        {/* Share Menu Popover */}
                         {!isSharingScreen && !requestPending && (
-                            <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-48 bg-[#1a1d23] border border-white/10 rounded-2xl p-2 shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all transform translate-y-2 group-hover:translate-y-0 z-50">
-                                <button onClick={() => toggleScreenShare('screen')} className="w-full flex items-center space-x-3 p-3 hover:bg-white/5 rounded-xl text-left transition text-gray-300 hover:text-white">
-                                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Screen Only</span>
+                            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-48 bg-white dark:bg-[#1a1d23] border border-gray-200 dark:border-white/10 rounded-2xl p-2 shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all z-50">
+                                <button onClick={() => toggleScreenShare('screen')} className="w-full flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl text-left transition text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                                    <Monitor size={14} className="text-blue-500" />
+                                    <span className="text-xs font-semibold">Faqat ekran</span>
                                 </button>
-                                <button onClick={() => toggleScreenShare('audio')} className="w-full flex items-center space-x-3 p-3 hover:bg-white/5 rounded-xl text-left transition text-gray-300 hover:text-white">
-                                    <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Audio Only</span>
+                                <button onClick={() => toggleScreenShare('audio')} className="w-full flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl text-left transition text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                                    <Volume2 size={14} className="text-emerald-500" />
+                                    <span className="text-xs font-semibold">Faqat audio</span>
                                 </button>
-                                <button onClick={() => toggleScreenShare('both')} className="w-full flex items-center space-x-3 p-3 bg-blue-600/10 hover:bg-blue-600/20 rounded-xl text-left transition text-blue-400 hover:text-blue-300 border border-blue-500/20">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2"></path></svg>
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Screen + Audio</span>
+                                <button onClick={() => toggleScreenShare('both')} className="w-full flex items-center gap-3 p-2.5 bg-blue-50 dark:bg-blue-600/10 hover:bg-blue-100 dark:hover:bg-blue-600/20 rounded-xl text-left transition text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20">
+                                    <MonitorUp size={14} />
+                                    <span className="text-xs font-semibold">Ekran + Audio</span>
                                 </button>
                             </div>
                         )}
-
                         {isSharingScreen && (
-                            <button onClick={stopScreenShare} className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-40 bg-red-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
-                                Stop Sharing
+                            <button onClick={stopScreenShare} className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-40 bg-red-600 text-white py-2.5 rounded-xl text-xs font-semibold shadow-xl opacity-0 group-hover:opacity-100 transition-all">
+                                To'xtatish
                             </button>
                         )}
                     </div>
-                    <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); }} className="lg:hidden p-2.5 bg-white/5 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all active:scale-90">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); }} className="lg:hidden p-2 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all">
+                        <MoreVertical size={18} />
                     </button>
+                    <LanguageToggle compact />
                 </div>
             </header>
 
@@ -960,6 +951,11 @@ const RoomPage = () => {
                                             isLocal={true} 
                                             userVideoStatus={!isVideoOff} 
                                         />
+                                        {handRaisedUsers.includes(userInfo._id) && (
+                                            <div className="absolute top-2 right-2 bg-blue-600/80 backdrop-blur-sm rounded-lg p-1.5 shadow-lg border border-white/10 animate-in zoom-in">
+                                                <span className="text-[12px]">✋</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 {peers.filter(p => p.peerID !== stageUser.socketId).map((peerObj, index) => {
@@ -974,6 +970,11 @@ const RoomPage = () => {
                                                 isLocal={false}
                                                 userVideoStatus={user?.videoStatus !== false}
                                             />
+                                            {handRaisedUsers.includes(peerObj.userId) && (
+                                                <div className="absolute top-2 right-2 bg-blue-600/80 backdrop-blur-sm rounded-lg p-1.5 shadow-lg border border-white/10 animate-in zoom-in">
+                                                    <span className="text-[12px]">✋</span>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -981,22 +982,20 @@ const RoomPage = () => {
                         </div>
                     ) : (
                         <div className="flex-1 p-2 md:p-4 overflow-y-auto custom-scrollbar flex flex-col">
-                            {/* Grid View — Zoom-style adaptive layout for large scale */}
-                            <div className={`grid gap-3 w-full my-auto ${
+                            {/* Grid View — Adaptive for mobile/desktop */}
+                            <div className={`grid gap-2 sm:gap-3 w-full my-auto ${
                                 peers.length === 0
                                     ? 'grid-cols-1 max-w-3xl mx-auto'
                                     : peers.length === 1
-                                    ? 'grid-cols-2 max-w-5xl mx-auto'
+                                    ? 'grid-cols-1 sm:grid-cols-2 max-w-5xl mx-auto'
                                     : peers.length <= 3
-                                    ? 'grid-cols-2 max-w-5xl mx-auto'
+                                    ? 'grid-cols-1 sm:grid-cols-2 max-w-5xl mx-auto'
                                     : peers.length <= 8
-                                    ? 'grid-cols-3 max-w-6xl mx-auto'
+                                    ? 'grid-cols-2 sm:grid-cols-3 max-w-6xl mx-auto'
                                     : peers.length <= 15
-                                    ? 'grid-cols-4 max-w-7xl mx-auto'
-                                    : peers.length <= 24
-                                    ? 'grid-cols-5 max-w-[1600px] mx-auto'
-                                    : 'grid-cols-auto-fit-min-200' 
-                            } animate-in fade-in zoom-in-95 duration-500 pb-10`}>
+                                    ? 'grid-cols-2 sm:grid-cols-4 max-w-7xl mx-auto'
+                                    : 'grid-cols-2 sm:grid-cols-auto-fit-min-200' 
+                            } animate-in fade-in zoom-in-95 duration-500 pb-20 sm:pb-10`}>
 
                                 {/* Local user tile */}
                                 <div className={`relative bg-[#0b0d11] rounded-2xl overflow-hidden shadow-xl border transition-all duration-500
@@ -1011,6 +1010,11 @@ const RoomPage = () => {
                                         isLocal={true}
                                         userVideoStatus={!isVideoOff}
                                     />
+                                    {handRaisedUsers.includes(userInfo._id) && (
+                                        <div className="absolute top-2 right-2 bg-blue-600/80 backdrop-blur-sm rounded-lg p-2 shadow-lg border border-white/10 animate-in zoom-in">
+                                            <span className="text-[16px]">✋</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Remote participant tiles */}
@@ -1026,6 +1030,11 @@ const RoomPage = () => {
                                                 isLocal={false}
                                                 userVideoStatus={user?.videoStatus !== false}
                                             />
+                                            {handRaisedUsers.includes(peerObj.userId) && (
+                                                <div className="absolute top-2 right-2 bg-blue-600/80 backdrop-blur-sm rounded-lg p-2 shadow-lg border border-white/10 animate-in zoom-in">
+                                                    <span className="text-[16px]">✋</span>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -1041,9 +1050,9 @@ const RoomPage = () => {
                             <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">Control Panel</span>
                             <button onClick={() => { setShowChat(false); setShowParticipants(false); }} className="p-2 bg-white/5 rounded-full text-gray-400 active:scale-90 transition-transform">✕</button>
                         </div>
-                        <div className="flex p-1.5 bg-black/40 m-4 rounded-2xl border border-white/10 shadow-inner">
-                            <button onClick={() => { setShowChat(true); setShowParticipants(false); }} className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all duration-300 ${showChat ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>CHAT</button>
-                            <button onClick={() => { setShowChat(false); setShowParticipants(true); }} className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all duration-300 ${showParticipants ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>PEOPLE</button>
+                        <div className="flex p-1.5 bg-black/30 m-4 rounded-2xl border border-white/8 shadow-inner">
+                            <button onClick={() => { setShowChat(true); setShowParticipants(false); }} className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-[0.15em] rounded-xl transition-all duration-200 ${showChat ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>Chat</button>
+                            <button onClick={() => { setShowChat(false); setShowParticipants(true); }} className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-[0.15em] rounded-xl transition-all duration-200 ${showParticipants ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>People</button>
                         </div>
 
                         {showParticipants && (
@@ -1152,292 +1161,164 @@ const RoomPage = () => {
                         )}
 
                         {showChat && (
-                            <div className="flex-1 flex flex-col min-h-0 bg-black/10">
-                                <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
-                                    {messages.map((msg, idx) => (
-                                        <div key={idx} className={`flex flex-col ${msg.userName === userInfo.name ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 duration-300`}>
-                                            <div className="flex items-center space-x-2 mb-1.5 px-2">
-                                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{msg.userName}</span>
-                                                <span className="text-[8px] text-gray-600 font-bold uppercase tracking-tight">{msg.time}</span>
-                                            </div>
-                                            <div className={`px-4 py-3 rounded-2xl text-[11px] leading-relaxed max-w-[90%] shadow-xl border relative group ${msg.userName === userInfo.name ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-400/20 rounded-tr-none' : 'bg-white/5 text-slate-300 border-white/10 rounded-tl-none'}`}>
-                                                {msg.file ? (
-                                                    <div className="flex items-center space-x-4 py-1">
-                                                        <div className="w-10 h-10 bg-black/30 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
-                                                            <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" /></svg>
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-[10px] font-black truncate mb-1 text-white">{msg.file.name}</p>
-                                                            <a href={msg.file.data} download={msg.file.name} className="text-[9px] text-blue-400 hover:text-blue-300 transition-colors font-black uppercase tracking-widest underline decoration-2 underline-offset-4">Download</a>
-                                                        </div>
-                                                    </div>
-                                                ) : msg.text}
-
-                                                {/* Chat message actions (Edit/Delete) */}
-                                                {!msg.file && String(msg.userName) === String(userInfo.name) && (
-                                                    <div className="absolute top-1/2 -translate-y-1/2 right-[102%] hidden group-hover:flex items-center bg-[#1a1d23] rounded-lg border border-white/10 p-1 shadow-lg space-x-1">
-                                                        <button 
-                                                            onClick={() => startEditingMessage(msg._id, msg.text)}
-                                                            className="p-1 hover:bg-white/10 text-gray-400 hover:text-white rounded-md transition-all title='Edit'"
-                                                        >
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => deleteChatMessage(msg._id)}
-                                                            className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-500 rounded-md transition-all title='Delete'"
-                                                        >
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div ref={messagesEndRef} />
-                                </div>
-                                {canChat ? (
-                                    <form onSubmit={sendMessage} className="p-4 bg-black/10 border-t border-white/5">
-                                        <div className="flex items-center space-x-2">
-                                            <label className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer transition text-gray-400 hover:text-white">
-                                                <input type="file" className="hidden" onChange={handleFileUpload} />
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.414a4 4 0 00-5.656-5.656l-6.415 6.415a6 6 0 108.486 8.486L20.5 13"></path></svg>
-                                            </label>
-                                            <div className="relative flex-1">
-                                                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={editingMessageId ? "Edit your message..." : "Send a message..."} className={`w-full bg-[#2a2d35] border-none rounded-xl px-4 py-2.5 text-[11px] outline-none transition placeholder:text-gray-600 ${editingMessageId ? 'focus:ring-1 focus:ring-amber-500/50' : 'focus:ring-1 focus:ring-blue-500/50'}`} />
-                                                <button type="submit" className={`absolute right-2 top-1.5 p-1.5 transition ${editingMessageId ? 'text-amber-500 hover:text-amber-400' : 'text-blue-500 hover:text-blue-400'}`}>
-                                                    {editingMessageId ? (
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                                    ) : (
-                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
-                                                    )}
-                                                </button>
-                                                {editingMessageId && (
-                                                    <button type="button" onClick={() => { setEditingMessageId(null); setNewMessage(''); }} className="absolute right-8 top-1.5 p-1.5 text-gray-500 hover:text-gray-400 transition" title="Cancel Edit">
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </form>
-                                ) : (
-                                    <div className="p-6 text-center bg-black/20 border-t border-white/5">
-                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Guests cannot participate in chat</p>
-                                    </div>
-                                )}
-                            </div>
+                            <ChatPanel
+                                messages={messages}
+                                newMessage={newMessage}
+                                setNewMessage={setNewMessage}
+                                sendMessage={sendMessage}
+                                editingMessageId={editingMessageId}
+                                setEditingMessageId={setEditingMessageId}
+                                handleFileUpload={handleFileUpload}
+                                deleteChatMessage={deleteChatMessage}
+                                startEditingMessage={startEditingMessage}
+                                onClose={() => setShowChat(false)}
+                                roomUsers={roomUsers}
+                                currentUserName={userInfo.name}
+                                canChat={canChat}
+                                meetingTitle={meeting?.title}
+                            />
                         )}
                     </aside>
                 )}
             </div>
-            {/* Bottom Controls — Zoom-style */}
-            <div className="h-auto min-h-[4.5rem] md:h-20 bg-[#1c1f28] border-t border-white/8 flex flex-wrap md:flex-nowrap items-center justify-between px-3 md:px-8 py-2 md:py-0 z-50 gap-y-2 relative">
-                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            {/* Bottom Controls */}
+            <div className="h-auto min-h-[4.5rem] md:h-20 bg-white dark:bg-[#1a1d26] border-t border-gray-200 dark:border-white/8 flex flex-wrap md:flex-nowrap items-center justify-between px-3 md:px-8 py-2 md:py-0 z-50 gap-y-2 transition-colors">
 
                 {/* Left: Meeting ID */}
-                <div
-                    className="hidden md:flex flex-col cursor-pointer group"
-                    onClick={() => { navigator.clipboard.writeText(roomID); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                >
-                    <span className="text-[9px] text-gray-600 uppercase tracking-[0.3em] font-black">Room ID</span>
-                    <span className={`text-xs font-mono font-bold transition-colors ${copied ? 'text-emerald-400' : 'text-gray-400 group-hover:text-white'}`}>
-                        {copied ? '✓ Copied!' : roomID}
-                    </span>
+                <div className="hidden md:flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    onClick={() => { navigator.clipboard.writeText(roomID); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+                    <div className="w-8 h-8 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg flex items-center justify-center shrink-0">
+                        {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} className="text-gray-400" />}
+                    </div>
+                    <div>
+                        <span className="block text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-bold">Meeting ID</span>
+                        <span className={`text-sm font-mono font-bold tracking-wider transition-colors ${copied ? 'text-emerald-500' : 'text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white'}`}>
+                            {copied ? 'Nusxalandi!' : roomID}
+                        </span>
+                    </div>
                 </div>
 
-                {/* Center: Control Buttons */}
-                <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-4 flex-1 md:flex-none mx-auto">
-
+                {/* Center Controls */}
+                <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-3 flex-1 md:flex-none mx-auto">
                     {myRole !== 'guest' && (
                         <>
-                            {/* Mic */}
-                            <button
-                                onClick={toggleMute}
-                                className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 active:scale-95 min-w-[52px] ${
-                                    isMuted
-                                        ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
-                                        : 'text-gray-300 hover:bg-white/8 hover:text-white'
-                                }`}
-                            >
-                                {isMuted
-                                    ? <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 1.56"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-                                    : <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-                                }
+                            <button onClick={toggleMute}
+                                className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${isMuted ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
+                                {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
                                 <span className="text-[9px] font-semibold">{isMuted ? 'Unmute' : 'Mute'}</span>
                             </button>
 
-                            {/* Camera */}
-                            <button
-                                onClick={toggleVideo}
-                                className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 active:scale-95 min-w-[52px] ${
-                                    isVideoOff
-                                        ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
-                                        : 'text-gray-300 hover:bg-white/8 hover:text-white'
-                                }`}
-                            >
-                                {isVideoOff
-                                    ? <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z M6 18L18 6"/></svg>
-                                    : <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                }
-                                <span className="text-[9px] font-semibold">{isVideoOff ? 'Start Video' : 'Stop Video'}</span>
+                            <button onClick={toggleVideo}
+                                className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${isVideoOff ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
+                                {isVideoOff ? <VideoOff size={18} /> : <VideoIcon size={18} />}
+                                <span className="text-[9px] font-semibold">{isVideoOff ? 'Video' : 'Video'}</span>
                             </button>
 
-                            <div className="w-px h-8 bg-white/10 hidden sm:block" />
+                            <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden sm:block" />
 
-                            {/* Screen Share */}
                             <div className="relative hidden sm:block">
-                                <button
-                                    onClick={() => isSharingScreen ? stopScreenShare() : setShowShareMenu(!showShareMenu)}
-                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 active:scale-95 min-w-[52px] ${
-                                        isSharingScreen
-                                            ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
-                                            : 'text-gray-300 hover:bg-white/8 hover:text-white'
-                                    }`}
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <rect x="2" y="3" width="20" height="14" rx="2" />
-                                        <path d="M8 21h8M12 17v4"/>
-                                        {isSharingScreen && <path d="M9 9l3-3 3 3M12 6v8" strokeLinecap="round"/>}
-                                    </svg>
-                                    <span className="text-[9px] font-semibold">{isSharingScreen ? 'Stop Share' : 'Share Screen'}</span>
+                                <button onClick={() => isSharingScreen ? stopScreenShare() : setShowShareMenu(!showShareMenu)}
+                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${isSharingScreen ? 'bg-blue-50 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
+                                    {isSharingScreen ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
+                                    <span className="text-[9px] font-semibold">{isSharingScreen ? "To'xtat" : 'Ekran'}</span>
                                 </button>
                                 {showShareMenu && !isSharingScreen && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-52 bg-[#1e222d] border border-white/10 rounded-2xl p-2 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest px-3 pt-1 pb-2">Select what to share</p>
-                                        {[{label: 'Screen Only', icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', type: 'screen'},
-                                          {label: 'Audio Only', icon: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3ZM19 10v2a7 7 0 0 1-14 0v-2', type: 'audio'},
-                                          {label: 'Screen + Audio', icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z', type: 'both'}
-                                        ].map(({label, icon, type}) => (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-48 bg-white dark:bg-[#1e222d] border border-gray-200 dark:border-white/10 rounded-2xl p-2 shadow-xl z-50">
+                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-2 pt-1 pb-2">Nima ulashish</p>
+                                        {[{label:'Faqat ekran', Icon: Monitor, type:'screen'},{label:'Faqat audio', Icon: Volume2, type:'audio'},{label:'Ekran + Audio', Icon: MonitorUp, type:'both'}].map(({label, Icon, type}) => (
                                             <button key={type} onClick={() => { toggleScreenShare(type); setShowShareMenu(false); }}
-                                                className="w-full text-left px-3 py-2.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:bg-white/5 rounded-xl transition-all flex items-center gap-3">
-                                                <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d={icon}/></svg>
-                                                {label}
+                                                className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl flex items-center gap-2.5">
+                                                <Icon size={13} className="text-blue-500 shrink-0" />{label}
                                             </button>
                                         ))}
                                     </div>
                                 )}
                             </div>
 
-                            {/* Record */}
                             {canRecord && (
-                                <button
-                                    onClick={isRecording ? stopRecording : startRecording}
-                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 min-w-[52px] hidden sm:flex ${
-                                        isRecording
-                                            ? 'bg-red-600/20 text-red-400 hover:bg-red-600/40 shadow-[0_0_15px_rgba(220,38,38,0.3)]'
-                                            : 'text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]'
-                                    }`}
-                                >
+                                <button onClick={isRecording ? stopRecording : startRecording}
+                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] hidden sm:flex ${isRecording ? 'bg-red-50 dark:bg-red-600/20 text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
                                     <div className="relative">
-                                        <svg className={`w-5 h-5 ${isRecording ? 'animate-pulse' : ''}`} fill={isRecording ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                            <circle cx="12" cy="12" r="8"/>
-                                            {isRecording && <circle cx="12" cy="12" r="4" fill="currentColor"/>}
-                                        </svg>
-                                        {isRecording && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping shadow-[0_0_8px_rgba(239,68,68,0.8)]" />}
+                                        {isRecording ? <StopCircle size={18} className="animate-pulse" /> : <Circle size={18} />}
+                                        {isRecording && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
                                     </div>
-                                    <span className={`text-[9px] font-black uppercase tracking-widest ${isRecording ? 'text-red-400' : ''}`}>{isRecording ? 'Stop Rec' : 'Record'}</span>
+                                    <span className={`text-[9px] font-semibold ${isRecording ? 'text-red-500 dark:text-red-400' : ''}`}>{isRecording ? 'Stop' : 'Yozish'}</span>
                                 </button>
                             )}
 
-                            {/* Raise Hand */}
-                            <button
-                                onClick={raiseHand}
-                                className="flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl text-gray-300 hover:bg-white/8 hover:text-white transition-all duration-200 active:scale-95 min-w-[52px] hidden sm:flex"
-                            >
-                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
-                                <span className="text-[9px] font-semibold">Raise Hand</span>
+                            <button onClick={raiseHand}
+                                className="flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white transition-all duration-200 min-w-[52px] hidden sm:flex">
+                                <Hand size={18} />
+                                <span className="text-[9px] font-semibold">Qo'l</span>
                             </button>
                         </>
                     )}
                 </div>
 
-                {/* Right: Chat, Participants, Settings, End */}
+                {/* Right Controls */}
                 <div className="flex items-center gap-1 sm:gap-2">
-                    <button
-                        onClick={() => setShowSettings(!showSettings)}
-                        className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 active:scale-95 min-w-[44px] hidden sm:flex ${
-                            showSettings ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/8'
-                        }`}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        <span className="text-[9px] font-semibold">Settings</span>
+                    <button onClick={() => setShowSettings(!showSettings)}
+                        className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] hidden sm:flex ${showSettings ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}>
+                        <Settings size={18} />
+                        <span className="text-[9px] font-semibold">Sozlama</span>
                     </button>
 
-                    <button
-                        onClick={() => { setShowChat(!showChat); setShowParticipants(false); }}
-                        className={`relative flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 active:scale-95 min-w-[44px] ${
-                            showChat ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/8'
-                        }`}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                        {unreadMessages > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-[8px] font-black rounded-full flex items-center justify-center border border-[#1c1f28]">{unreadMessages}</span>}
+                    <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); }}
+                        className={`relative flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] ${showChat ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}>
+                        <MessageSquare size={18} />
+                        {unreadMessages > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-[8px] font-bold rounded-full flex items-center justify-center text-white">{unreadMessages}</span>}
                         <span className="text-[9px] font-semibold">Chat</span>
                     </button>
 
-                    <button
-                        onClick={() => { setShowParticipants(!showParticipants); setShowChat(false); }}
-                        className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 active:scale-95 min-w-[44px] ${
-                            showParticipants ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/8'
-                        }`}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                        <span className="text-[9px] font-semibold">People {roomUsers.length > 0 && `(${roomUsers.length})`}</span>
+                    <button onClick={() => { setShowParticipants(!showParticipants); setShowChat(false); }}
+                        className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] ${showParticipants ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}>
+                        <Users size={18} />
+                        <span className="text-[9px] font-semibold">Odamlar {roomUsers.length > 0 && `(${roomUsers.length})`}</span>
                     </button>
 
-                    <div className="w-px h-8 bg-white/10 hidden sm:block mx-1" />
+                    <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden sm:block mx-1" />
 
-                    <button
-                        onClick={leaveRoom}
-                        className="flex flex-col items-center gap-1 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200 active:scale-95 font-semibold shadow-lg shadow-red-900/30"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-                        <span className="text-[9px] font-semibold">Leave</span>
+                    <button onClick={leaveRoom}
+                        className="flex flex-col items-center gap-1 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors shadow-md">
+                        <LogOut size={18} />
+                        <span className="text-[9px] font-semibold">Chiqish</span>
                     </button>
                 </div>
             </div>
+
             {/* Settings Modal */}
             {showSettings && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-                    <div className="bg-[#1e222d] border border-white/10 rounded-[3rem] w-full max-w-lg p-10 shadow-2xl relative">
-                        <button onClick={() => setShowSettings(false)} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" /></svg>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-[#1e222d] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-lg p-8 shadow-2xl relative">
+                        <button onClick={() => setShowSettings(false)}
+                            className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                            <X size={20} />
                         </button>
-                        
-                        <h2 className="text-2xl font-black text-white mb-2 tracking-tight uppercase">Device Settings</h2>
-                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-10">Configure your hardware interface</p>
-
-                        <div className="space-y-8">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Qurilma sozlamalari</h2>
+                        <p className="text-gray-500 dark:text-gray-400 text-xs font-medium mb-8">Kamera va mikrofonni sozlang</p>
+                        <div className="space-y-6">
                             <div>
-                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 px-1">Optical Input (Camera)</label>
-                                <select 
-                                    value={selectedVideoDevice} 
-                                    onChange={(e) => switchCamera(e.target.value)}
-                                    className="w-full bg-black/20 border-2 border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
-                                >
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Kamera</label>
+                                <select value={selectedVideoDevice} onChange={(e) => switchCamera(e.target.value)}
+                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 dark:text-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none cursor-pointer">
                                     {videoDevices.map(device => (
-                                        <option key={device.deviceId} value={device.deviceId} className="bg-[#1e222d]">{device.label || `Camera ${device.deviceId.slice(0, 5)}`}</option>
+                                        <option key={device.deviceId} value={device.deviceId}>{device.label || `Kamera ${device.deviceId.slice(0, 5)}`}</option>
                                     ))}
                                 </select>
                             </div>
-
                             <div>
-                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 px-1">Acoustic Input (Microphone)</label>
-                                <select 
-                                    value={selectedAudioDevice} 
-                                    onChange={(e) => switchAudio(e.target.value)}
-                                    className="w-full bg-black/20 border-2 border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
-                                >
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Mikrofon</label>
+                                <select value={selectedAudioDevice} onChange={(e) => switchAudio(e.target.value)}
+                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 dark:text-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none cursor-pointer">
                                     {audioDevices.map(device => (
-                                        <option key={device.deviceId} value={device.deviceId} className="bg-[#1e222d]">{device.label || `Microphone ${device.deviceId.slice(0, 5)}`}</option>
+                                        <option key={device.deviceId} value={device.deviceId}>{device.label || `Mikrofon ${device.deviceId.slice(0, 5)}`}</option>
                                     ))}
                                 </select>
                             </div>
                         </div>
-
-                        <button 
-                            onClick={() => setShowSettings(false)}
-                            className="w-full mt-12 bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[2rem] text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-500/20 active:scale-95"
-                        >
-                            Save Configuration
+                        <button onClick={() => setShowSettings(false)}
+                            className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+                            Saqlash
                         </button>
                     </div>
                 </div>
@@ -1447,3 +1328,4 @@ const RoomPage = () => {
 };
 
 export default RoomPage;
+

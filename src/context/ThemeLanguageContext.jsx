@@ -1,0 +1,249 @@
+import React, { createContext, useState, useEffect } from 'react';
+
+export const ThemeLanguageContext = createContext();
+
+const translations = {
+    en: {
+        dashboard: "Dashboard",
+        admin_console: "Admin Console",
+        recent_meetings: "Recent Meetings",
+        sign_out: "Sign Out",
+        welcome: "Welcome",
+        manage_meetings: "Manage your meetings and communication.",
+        new_meeting: "New Meeting",
+        start_instant: "Start an instant meeting with your team.",
+        meeting_topic: "Meeting Topic (Optional)",
+        start_meeting: "Start Meeting",
+        starting: "Starting...",
+        join_meeting: "Join Meeting",
+        enter_code: "Enter a meeting code or link to join.",
+        meeting_id_link: "Meeting ID or Link",
+        join_now: "Join Now",
+        schedule: "Schedule",
+        plan_future: "Plan a meeting for a future date.",
+        coming_soon: "Coming Soon",
+        overview: "Overview",
+        users: "Users",
+        meetings: "Meetings",
+        back_to_app: "Back to App",
+        total_users: "Total Users",
+        active_meetings: "Active Meetings",
+        host_nodes: "Host Nodes",
+        participants: "Participants",
+        add_user: "Add User",
+        name_email: "Name & Email",
+        role: "Role",
+        status: "Status",
+        actions: "Actions",
+        meeting_title_id: "Meeting Title & ID",
+        host: "Host",
+        date: "Date",
+        welcome_back: "Welcome Back",
+        network_email: "Email Address",
+        security_key: "Password",
+        initiate_login: "Sign In",
+        join_as_guest: "Join as Guest",
+        new_instance: "New Instance?",
+        register_directory: "Register Directory",
+        create_identity: "Create Identity",
+        join_network: "Join the communication network",
+        full_identity_name: "Full Name",
+        register_node: "Register Node",
+        already_registered: "Already Registered?",
+        sign_in_protocol: "Sign In Protocol",
+        profile: "Profile",
+        save_changes: "Save Changes",
+        // Auth specific
+        login_title: "Log in to Account",
+        register_title: "Create Account",
+        username: "Username",
+        remember_me: "Remember",
+        forgot_password: "Forgot?",
+        or_continue_with: "or continue with",
+        social: "Social",
+        guest_mode: "Guest Mode",
+        hello_friend: "Hello, Friend!",
+        welcome_back_title: "Welcome Back!",
+        login_desc: "Enter your personal details and start your journey with us today.",
+        register_desc: "To keep connected with us please login with your personal info.",
+        accept_terms: "Accept Terms",
+        home: "Home",
+        back: "Back",
+        enter_details: "Please enter your details",
+        create_free_account: "Create your free account"
+    },
+    uz: {
+        dashboard: "Boshqaruv paneli",
+        admin_console: "Admin panel",
+        recent_meetings: "So'nggi uchrashuvlar",
+        sign_out: "Chiqish",
+        welcome: "Xush kelibsiz",
+        manage_meetings: "Uchrashuv va muloqotlarni boshqaring.",
+        new_meeting: "Yangi uchrashuv",
+        start_instant: "Jamoangiz bilan tezkor uchrashuv boshlash.",
+        meeting_topic: "Uchrashuv mavzusi (Ixtiyoriy)",
+        start_meeting: "Boshlash",
+        starting: "Boshlanmoqda...",
+        join_meeting: "Uchrashuvga qo'shilish",
+        enter_code: "Qo'shilish uchun kod yoki havolani kiriting.",
+        meeting_id_link: "ID yoki Havola",
+        join_now: "Qo'shilish",
+        schedule: "Rejalashtirish",
+        plan_future: "Kelajakdagi uchrashuvni rejalashtirish.",
+        coming_soon: "Tez orada",
+        overview: "Umumiy",
+        users: "Foydalanuvchilar",
+        meetings: "Uchrashuvlar",
+        back_to_app: "Ilovaga qaytish",
+        total_users: "Jami foydalanuvchilar",
+        active_meetings: "Faol uchrashuvlar",
+        host_nodes: "Xostlar",
+        participants: "Ishtirokchilar",
+        add_user: "Foydalanuvchi qo'shish",
+        name_email: "Ism va Email",
+        role: "Rol",
+        status: "Holat",
+        actions: "Harakatlar",
+        meeting_title_id: "Uchrashuv nomi & ID",
+        host: "Xost",
+        date: "Sana",
+        welcome_back: "Xush kelibsiz",
+        network_email: "Email manzil",
+        security_key: "Parol",
+        initiate_login: "Kirish",
+        join_as_guest: "Mehmon bo'lib qo'shilish",
+        new_instance: "Ro'yxatdan o'tmaganmisiz?",
+        register_directory: "Ro'yxatdan o'tish",
+        create_identity: "Hisob yaratish",
+        join_network: "Muloqot tarmog'iga qo'shiling",
+        full_identity_name: "To'liq ism",
+        register_node: "Ro'yxatdan o'tish",
+        already_registered: "Hisobingiz bormi?",
+        sign_in_protocol: "Kirish",
+        profile: "Profil",
+        save_changes: "Saqlash",
+        // Auth specific
+        login_title: "Tizimga kirish",
+        register_title: "Hisob yaratish",
+        username: "Foydalanuvchi nomi",
+        remember_me: "Eslab qolish",
+        forgot_password: "Unutdingizmi?",
+        or_continue_with: "yoki davom eting",
+        social: "Ijtimoiy",
+        guest_mode: "Mehmon rejimi",
+        hello_friend: "Salom, do'stim!",
+        welcome_back_title: "Xush kelibsiz!",
+        login_desc: "Shaxsiy ma'lumotlaringizni kiriting va bugun biz bilan sayohatingizni boshlang.",
+        register_desc: "Biz bilan bog'lanib turish uchun shaxsiy ma'lumotlaringiz orqali kiring.",
+        accept_terms: "Shartlarga roziman",
+        home: "Bosh sahifa",
+        back: "Orqaga",
+        enter_details: "Ma'lumotlarni kiriting",
+        create_free_account: "Bepul hisob yarating"
+    },
+    ru: {
+        dashboard: "Панель управления",
+        admin_console: "Консоль админа",
+        recent_meetings: "Недавние встречи",
+        sign_out: "Выйти",
+        welcome: "Добро пожаловать",
+        manage_meetings: "Управляйте встречами и общением.",
+        new_meeting: "Новая встреча",
+        start_instant: "Начать мгновенную встречу с командой.",
+        meeting_topic: "Тема встречи (Необязательно)",
+        start_meeting: "Начать встречу",
+        starting: "Запуск...",
+        join_meeting: "Присоединиться",
+        enter_code: "Введите код или ссылку для подключения.",
+        meeting_id_link: "ID встречи или ссылка",
+        join_now: "Присоединиться",
+        schedule: "Запланировать",
+        plan_future: "Запланировать встречу на будущее.",
+        coming_soon: "Скоро",
+        overview: "Обзор",
+        users: "Пользователи",
+        meetings: "Встречи",
+        back_to_app: "Вернуться в приложение",
+        total_users: "Всего пользователей",
+        active_meetings: "Активные встречи",
+        host_nodes: "Организаторы",
+        participants: "Участники",
+        add_user: "Добавить",
+        name_email: "Имя и Email",
+        role: "Роль",
+        status: "Статус",
+        actions: "Действия",
+        meeting_title_id: "Название & ID",
+        host: "Организатор",
+        date: "Дата",
+        welcome_back: "С возвращением",
+        network_email: "Электронная почта",
+        security_key: "Пароль",
+        initiate_login: "Войти",
+        join_as_guest: "Войти как гость",
+        new_instance: "Нет аккаунта?",
+        register_directory: "Зарегистрироваться",
+        create_identity: "Создать аккаунт",
+        join_network: "Присоединяйтесь к сети",
+        full_identity_name: "Полное имя",
+        register_node: "Зарегистрироваться",
+        already_registered: "Уже есть аккаунт?",
+        sign_in_protocol: "Войти",
+        profile: "Профиль",
+        save_changes: "Сохранить изменения",
+        // Auth specific
+        login_title: "Вход в аккаунт",
+        register_title: "Создать аккаунт",
+        username: "Имя пользователя",
+        remember_me: "Запомнить",
+        forgot_password: "Забыли?",
+        or_continue_with: "или продолжить через",
+        social: "Соцсети",
+        guest_mode: "Гостевой режим",
+        hello_friend: "Привет, друг!",
+        welcome_back_title: "С возвращением!",
+        login_desc: "Введите свои данные и начните путешествие с нами сегодня.",
+        register_desc: "Чтобы оставаться на связи, пожалуйста, войдите под своими данными.",
+        accept_terms: "Принимаю условия",
+        home: "Главная",
+        back: "Назад",
+        enter_details: "Введите свои данные",
+        create_free_account: "Создайте бесплатный аккаунт"
+    }
+};
+
+export const ThemeLanguageProvider = ({ children }) => {
+    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+    const [lang, setLang] = useState(localStorage.getItem('lang') || 'uz');
+
+    useEffect(() => {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        localStorage.setItem('theme', theme);
+    }, [theme]);
+
+    useEffect(() => {
+        localStorage.setItem('lang', lang);
+    }, [lang]);
+
+    const toggleTheme = () => {
+        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    };
+
+    const changeLanguage = (newLang) => {
+        setLang(newLang);
+    };
+
+    const t = (key) => {
+        return translations[lang]?.[key] || translations['en'][key] || key;
+    };
+
+    return (
+        <ThemeLanguageContext.Provider value={{ theme, toggleTheme, lang, changeLanguage, t }}>
+            {children}
+        </ThemeLanguageContext.Provider>
+    );
+};
