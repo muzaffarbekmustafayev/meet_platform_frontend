@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar';
 import TopHeader from '../components/TopHeader';
 import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
 import MeetraLogo from '../MeetraLogo/MeetraLogo';
+import ComingSoonModal from '../components/ComingSoonModal';
 
 // Inline lang+theme controls for non-admin navbar
 const NavbarControls = ({ lang, changeLanguage, theme, toggleTheme }) => {
@@ -200,11 +201,15 @@ const LandingView = ({ t, lang }) => (
     </div>
 );
 
-// ─── Home View (Meetra) ───────────────────────────────────────────────────────
 const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
     const [meetingTitle, setMeetingTitle] = useState('');
     const [loading, setLoading] = useState(false);
     const [time, setTime] = useState(new Date());
+    const [roomType, setRoomType] = useState('public');
+    const [roomPassword, setRoomPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [passwordCopied, setPasswordCopied] = useState(false);
+    const [comingSoon, setComingSoon] = useState({ show: false, name: '' });
     const navigate = useNavigate();
 
     // Live clock
@@ -213,12 +218,58 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
         return () => clearInterval(id);
     }, []);
 
+    // Generate random password
+    const generatePassword = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+        let password = '';
+        for (let i = 0; i < 8; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        setRoomPassword(password);
+    };
+
+    // Get password strength
+    const getPasswordStrength = () => {
+        if (!roomPassword) return { level: 0, text: '', color: 'gray' };
+        let strength = 0;
+        if (roomPassword.length >= 6) strength++;
+        if (roomPassword.length >= 10) strength++;
+        if (/[a-z]/.test(roomPassword) && /[A-Z]/.test(roomPassword)) strength++;
+        if (/\d/.test(roomPassword)) strength++;
+        if (/[!@#$%^&*]/.test(roomPassword)) strength++;
+        
+        if (strength <= 1) return { level: 1, text: lang === 'uz' ? 'Zaif' : lang === 'ru' ? 'Слабый' : 'Weak', color: 'red' };
+        if (strength <= 2) return { level: 2, text: lang === 'uz' ? 'O\'rtacha' : lang === 'ru' ? 'Средний' : 'Fair', color: 'yellow' };
+        if (strength <= 3) return { level: 3, text: lang === 'uz' ? 'Yaxshi' : lang === 'ru' ? 'Хороший' : 'Good', color: 'blue' };
+        return { level: 4, text: lang === 'uz' ? 'Kuchli' : lang === 'ru' ? 'Сильный' : 'Strong', color: 'green' };
+    };
+
+    const passwordStrength = getPasswordStrength();
+
     const handleCreateRoom = async () => {
+        // Validation: Private rooms require password
+        if (roomType === 'private' && !roomPassword.trim()) {
+            alert(lang === 'uz' ? 'Shaxsiy xonalar uchun parol kerak' : lang === 'ru' ? 'Для приватных комнат требуется пароль' : 'Password is required for private rooms');
+            return;
+        }
+
+        // Validation: Public rooms should not have password
+        if (roomType === 'public' && roomPassword.trim()) {
+            alert(lang === 'uz' ? 'Ommaviy xonalar parol bilan himoyalanmaydi' : lang === 'ru' ? 'Публичные комнаты не должны быть защищены паролем' : 'Public rooms cannot have password protection');
+            return;
+        }
+
         setLoading(true);
         try {
-            const { data } = await API.post('/api/meetings', { title: meetingTitle || `${userInfo.name}'s Meeting` });
+            const { data } = await API.post('/api/meetings', { 
+                title: meetingTitle || `${userInfo.name}'s Meeting`,
+                roomType,
+                password: roomType === 'private' ? roomPassword : undefined
+            });
             navigate(`/room/${data.meetingCode}`);
-        } catch { alert('Failed to create'); }
+        } catch (error) { 
+            alert(error.response?.data?.message || 'Failed to create'); 
+        }
         finally { setLoading(false); }
     };
 
@@ -330,35 +381,191 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
 
                 {/* New Meeting Input Container */}
                 {showNewMeeting && (
-                    <div className="mb-16 glass dark:bg-gray-800/80 border border-white/50 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl shadow-gray-200/50 dark:shadow-black/40 flex flex-col sm:flex-row gap-6 items-end animate-in slide-in-from-top-6 duration-500 ease-out">
-                        <div className="flex-1 w-full">
-                            <div className="flex items-center gap-2 mb-3 ml-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.3em]">
-                                    {lang === 'uz' ? 'Yangi uchrashuv nomi' : lang === 'ru' ? 'Название новой встречи' : 'New Meeting Title'}
-                                </p>
+                    <div className="mb-16 glass dark:bg-gray-800/80 border border-white/50 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl shadow-gray-200/50 dark:shadow-black/40 animate-in slide-in-from-top-6 duration-500 ease-out">
+                        <div className="space-y-6">
+                            {/* Meeting Title */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-3 ml-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.3em]">
+                                        {lang === 'uz' ? 'Yangi uchrashuv nomi' : lang === 'ru' ? 'Название новой встречи' : 'New Meeting Title'}
+                                    </p>
+                                </div>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder={t('meeting_topic')}
+                                    value={meetingTitle}
+                                    onChange={e => setMeetingTitle(e.target.value)}
+                                    className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/50 rounded-2xl px-6 py-5 text-lg font-semibold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
+                                />
                             </div>
-                            <input
-                                autoFocus
-                                type="text"
-                                placeholder={t('meeting_topic')}
-                                value={meetingTitle}
-                                onChange={e => setMeetingTitle(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleCreateRoom()}
-                                className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/50 rounded-2xl px-6 py-5 text-lg font-semibold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
-                            />
-                        </div>
-                        <div className="flex gap-4 w-full sm:w-auto">
-                            <button onClick={() => setShowNewMeeting(false)}
-                                className="px-8 py-5 text-sm font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-2xl transition-all flex-1 sm:flex-none active:scale-95">
-                                {lang === 'uz' ? 'Bekor' : lang === 'ru' ? 'Отмена' : 'Cancel'}
-                            </button>
-                            <button onClick={handleCreateRoom} disabled={loading}
-                                className="px-10 py-5 gradient-blue text-white text-sm font-black rounded-2xl transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50 flex-1 sm:flex-none active:scale-95">
-                                {loading ? t('starting') : t('start_meeting')}
-                            </button>
+
+                            {/* Room Type Selection */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => { setRoomType('public'); setRoomPassword(''); }}
+                                    className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 ${roomType === 'public' 
+                                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-600 dark:text-blue-400' 
+                                        : 'bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-blue-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-center gap-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                        {lang === 'uz' ? 'Ommaviy' : lang === 'ru' ? 'Публичный' : 'Public'}
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setComingSoon({ show: true, name: lang === 'uz' ? 'Shaxsiy xonalar' : 'Private Rooms' })}
+                                    className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 ${roomType === 'private' 
+                                        ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-500 text-purple-600 dark:text-purple-400' 
+                                        : 'bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-purple-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-center gap-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                        {lang === 'uz' ? 'Shaxsiy' : lang === 'ru' ? 'Приватный' : 'Private'}
+                                    </div>
+                                </button>
+                            </div>
+
+                            {/* Password Field (only for private rooms) */}
+                            {roomType === 'private' && (
+                                <div className="animate-in slide-in-from-top-2 duration-300 space-y-4">
+                                    <div className="flex items-center gap-2 mb-3 ml-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                        <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.3em]">
+                                            {lang === 'uz' ? 'Xonaning paroli' : lang === 'ru' ? 'Пароль комнаты' : 'Room Password'} *
+                                        </p>
+                                    </div>
+                                    
+                                    {/* Password Input with Toggle & Copy */}
+                                    <div className="relative group">
+                                        <div className="flex gap-2 items-center">
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                placeholder={lang === 'uz' ? 'Parolni kiriting yoki yarating' : lang === 'ru' ? 'Введите или создайте пароль' : 'Enter or generate password'}
+                                                value={roomPassword}
+                                                onChange={e => setRoomPassword(e.target.value)}
+                                                className="flex-1 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/50 rounded-2xl px-6 py-4 text-base font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all shadow-inner"
+                                            />
+                                            
+                                            {/* Show/Hide Toggle */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="px-3 py-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-800/50 rounded-xl transition-all"
+                                                title={showPassword ? 'Hide' : 'Show'}
+                                            >
+                                                {showPassword ? (
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                ) : (
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                )}
+                                            </button>
+                                            
+                                            {/* Copy Button */}
+                                            {roomPassword && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(roomPassword);
+                                                        setPasswordCopied(true);
+                                                        setTimeout(() => setPasswordCopied(false), 2000);
+                                                    }}
+                                                    className="px-3 py-3 text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-900/20 rounded-xl transition-all"
+                                                    title={lang === 'uz' ? 'Nusxalash' : 'Copy'}
+                                                >
+                                                    {passwordCopied ? (
+                                                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                                    ) : (
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Password Strength Indicator */}
+                                    {roomPassword && (
+                                        <div className="space-y-2">
+                                            <div className="flex gap-1">
+                                                {[1, 2, 3, 4].map(level => (
+                                                    <div
+                                                        key={level}
+                                                        className={`h-1.5 flex-1 rounded-full transition-colors ${
+                                                            level <= passwordStrength.level
+                                                                ? passwordStrength.color === 'red'
+                                                                    ? 'bg-red-500'
+                                                                    : passwordStrength.color === 'yellow'
+                                                                    ? 'bg-yellow-500'
+                                                                    : passwordStrength.color === 'blue'
+                                                                    ? 'bg-blue-500'
+                                                                    : 'bg-green-500'
+                                                                : 'bg-gray-200 dark:bg-gray-700'
+                                                        }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <p className={`text-xs font-semibold uppercase tracking-wider ${
+                                                passwordStrength.color === 'red'
+                                                    ? 'text-red-600 dark:text-red-400'
+                                                    : passwordStrength.color === 'yellow'
+                                                    ? 'text-yellow-600 dark:text-yellow-400'
+                                                    : passwordStrength.color === 'blue'
+                                                    ? 'text-blue-600 dark:text-blue-400'
+                                                    : 'text-green-600 dark:text-green-400'
+                                            }`}>
+                                                {lang === 'uz' ? 'Kuchliligi: ' : lang === 'ru' ? 'Надежность: ' : 'Strength: '} {passwordStrength.text}
+                                            </p>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Generate & Clear Buttons */}
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={generatePassword}
+                                            className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800/50 text-purple-600 dark:text-purple-400 font-bold text-sm rounded-xl hover:from-purple-500/20 hover:to-indigo-500/20 transition-all active:scale-95"
+                                        >
+                                            <div className="flex items-center justify-center gap-2">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                                {lang === 'uz' ? 'Yaratish' : lang === 'ru' ? 'Создать' : 'Generate'}
+                                            </div>
+                                        </button>
+                                        {roomPassword && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setRoomPassword('')}
+                                                className="px-4 py-3 bg-gray-100/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 font-bold text-sm rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all active:scale-95"
+                                            >
+                                                {lang === 'uz' ? 'Tozalash' : lang === 'ru' ? 'Очистить' : 'Clear'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-4 pt-4">
+                                <button onClick={() => { setShowNewMeeting(false); setRoomPassword(''); setMeetingTitle(''); }}
+                                    className="px-8 py-4 text-sm font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-2xl transition-all flex-1 active:scale-95">
+                                    {lang === 'uz' ? 'Bekor' : lang === 'ru' ? 'Отмена' : 'Cancel'}
+                                </button>
+                                <button onClick={handleCreateRoom} disabled={loading || (roomType === 'private' && !roomPassword.trim())}
+                                    className="px-10 py-4 gradient-blue text-white text-sm font-black rounded-2xl transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex-1 active:scale-95">
+                                    {loading ? t('starting') : t('start_meeting')}
+                                </button>
+                            </div>
                         </div>
                     </div>
+                )}
+
+                {comingSoon.show && (
+                    <ComingSoonModal 
+                        onClose={() => setComingSoon({ show: false, name: '' })} 
+                        featureName={comingSoon.name} 
+                    />
                 )}
 
                 {/* Dashboard Bottom Section */}

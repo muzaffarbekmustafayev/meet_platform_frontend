@@ -14,7 +14,7 @@ const AdminPage = () => {
     const [showModal, setShowModal] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [currentUser, setCurrentUser] = useState({ name: '', email: '', password: '', role: 'participant' });
+    const [currentUser, setCurrentUser] = useState({ name: '', email: '', password: '', username: '', role: 'user' });
     const navigate = useNavigate();
     const { t } = useContext(ThemeLanguageContext);
 
@@ -90,7 +90,7 @@ const AdminPage = () => {
     };
 
     const openAddModal = () => {
-        setCurrentUser({ name: '', email: '', password: '', role: 'participant' });
+        setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' });
         setEditMode(false);
         setShowModal(true);
     };
@@ -366,14 +366,24 @@ const AdminPage = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">{editMode ? 'Password (Optional)' : 'Password'}</label>
+                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">Username</label>
+                                    <input 
+                                        type="text" 
+                                        value={currentUser.username}
+                                        onChange={(e) => setCurrentUser({...currentUser, username: e.target.value})}
+                                        className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
+                                        placeholder="username (optional)"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">{editMode || currentUser.role === 'guest' ? 'Password (Optional)' : 'Password'}</label>
                                     <input 
                                         type="password" 
-                                        required={!editMode}
+                                        required={!editMode && currentUser.role !== 'guest'}
                                         value={currentUser.password}
                                         onChange={(e) => setCurrentUser({...currentUser, password: e.target.value})}
                                         className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
-                                        placeholder={editMode ? "Leave blank to keep current" : "••••••••"}
+                                        placeholder={editMode || currentUser.role === 'guest' ? "Leave blank to keep current" : "••••••••"}
                                     />
                                 </div>
                                 <div>
@@ -383,8 +393,7 @@ const AdminPage = () => {
                                         onChange={(e) => setCurrentUser({...currentUser, role: e.target.value})}
                                         className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm appearance-none"
                                     >
-                                        <option value="participant">Participant</option>
-                                        <option value="host">Host</option>
+                                        <option value="user">User</option>
                                         <option value="admin">Admin</option>
                                     </select>
                                 </div>

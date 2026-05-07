@@ -65,6 +65,9 @@ const RoomPage = () => {
     const [waitingRoomUsers, setWaitingRoomUsers] = useState([]); // For host/cohost
     const [isInWaitingRoom, setIsInWaitingRoom] = useState(false);
     const [waitingRoomDenied, setWaitingRoomDenied] = useState(false);
+    const [passwordRequired, setPasswordRequired] = useState(false);
+    const [passwordInput, setPasswordInput] = useState('');
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
@@ -103,13 +106,23 @@ const RoomPage = () => {
         setIsShareApproved(false);
         setRequestPending(false);
 
-        const fetchMeeting = async () => {
+        const fetchMeeting = async (password = null) => {
             try {
-                const { data } = await API.get(`/api/meetings/${roomID}`);
+                const config = password ? { 
+                    params: { password } 
+                } : {};
+                const { data } = await API.get(`/api/meetings/${roomID}`, config);
                 setMeeting(data);
+                setPasswordRequired(false);
             } catch (error) {
-                alert('Meeting not found');
-                navigate('/');
+                if (error.response?.status === 403 && error.response?.data?.requiresPassword) {
+                    setPasswordRequired(true);
+                } else if (error.response?.status === 403) {
+                    setAccessDenied(true);
+                } else {
+                    alert('Meeting not found');
+                    navigate('/');
+                }
             }
         };
         fetchMeeting();
@@ -813,6 +826,73 @@ const RoomPage = () => {
 
     if (isInWaitingRoom) return <WaitingRoom />;
     if (waitingRoomDenied) return <AccessDenied />;
+    if (accessDenied) return <AccessDenied />;
+
+    // Password Modal for Private Rooms
+    if (passwordRequired) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-8 border border-gray-100 dark:border-gray-700">
+                    <div className="flex justify-center mb-6">
+                        <div className="w-14 h-14 bg-purple-100 dark:bg-purple-900/30 rounded-3xl flex items-center justify-center text-purple-600 dark:text-purple-400">
+                            <Lock className="w-7 h-7" />
+                        </div>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-2">
+                        Himoyalangan Xona
+                    </h2>
+                    <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
+                        Bu xonaga kirish uchun parol talab qilinadi. Parolni kiriting.
+                    </p>
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        if (passwordInput.trim()) {
+                            const fetchMeeting = async (password = null) => {
+                                try {
+                                    const config = password ? { params: { password } } : {};
+                                    const { data } = await API.get(`/api/meetings/${roomID}`, config);
+                                    setMeeting(data);
+                                    setPasswordRequired(false);
+                                } catch (error) {
+                                    if (error.response?.status === 403 && error.response?.data?.requiresPassword) {
+                                        setPasswordRequired(true);
+                                    } else if (error.response?.status === 403) {
+                                        setAccessDenied(true);
+                                    } else {
+                                        alert('Meeting not found');
+                                        navigate('/');
+                                    }
+                                }
+                            };
+                            fetchMeeting(passwordInput);
+                        }
+                    }} className="space-y-4">
+                        <input
+                            type="password"
+                            placeholder="Parolni kiriting"
+                            value={passwordInput}
+                            onChange={(e) => setPasswordInput(e.target.value)}
+                            autoFocus
+                            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                        <button
+                            type="submit"
+                            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all"
+                        >
+                            Kirish
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/')}
+                            className="w-full py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-bold rounded-xl transition-all hover:bg-gray-300 dark:hover:bg-gray-600"
+                        >
+                            Bekor qilish
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-screen bg-gray-100 dark:bg-[#0c0e14] text-gray-900 dark:text-white font-sans overflow-hidden transition-colors">
