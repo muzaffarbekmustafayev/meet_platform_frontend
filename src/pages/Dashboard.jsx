@@ -182,6 +182,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
     const [comingSoon, setComingSoon] = useState({ show: false, name: '' });
     const navigate = useNavigate();
     const toast = useToast();
+    const isGuest = userInfo?.role === 'guest';
 
     // Live clock
     React.useEffect(() => {
@@ -246,7 +247,15 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                 roomType,
                 password: roomType === 'private' ? roomPassword : undefined
             });
-            navigate(`/room/${data.meetingCode}`);
+
+            // If guest created meeting, show registration prompt
+            if (isGuest) {
+                toast.success(t('guest_meeting_created'), 5000);
+                // Navigate after brief delay to show toast
+                setTimeout(() => navigate(`/room/${data.meetingCode}`), 1500);
+            } else {
+                navigate(`/room/${data.meetingCode}`);
+            }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to create');
         } finally {
@@ -1204,7 +1213,7 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
     );
 };
 
-const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
+const HistoryView = ({ t, lang, userInfo, history, onDelete, onUpdate }) => {
     const [editingId, setEditingId] = useState(null);
     const [editTitle, setEditTitle] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -1212,12 +1221,20 @@ const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
     const [creating, setCreating] = useState(false);
     const navigate = useNavigate();
     const toast = useToast();
+    const isGuest = userInfo?.role === 'guest';
 
     const handleCreateMeeting = async () => {
         setCreating(true);
         try {
             const { data } = await API.post('/api/meetings', { roomType: 'public' });
-            navigate(`/room/${data.meetingCode}`);
+
+            // If guest created meeting, show registration prompt
+            if (isGuest) {
+                toast.success(t('guest_meeting_created'), 5000);
+                setTimeout(() => navigate(`/room/${data.meetingCode}`), 1500);
+            } else {
+                navigate(`/room/${data.meetingCode}`);
+            }
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to create');
         } finally {
@@ -1461,7 +1478,7 @@ const Dashboard = () => {
             {view === 'join' && <JoinView t={t} />}
             {view === 'schedule' && <ScheduleView t={t} lang={lang} />}
             {view === 'profile' && <ProfileView t={t} lang={lang} userInfo={userInfo} />}
-            {view === 'history' && <HistoryView t={t} lang={lang} history={history} onDelete={handleDeleteMeeting} onUpdate={handleUpdateMeeting} />}
+            {view === 'history' && <HistoryView t={t} lang={lang} userInfo={userInfo} history={history} onDelete={handleDeleteMeeting} onUpdate={handleUpdateMeeting} />}
         </>
     );
 

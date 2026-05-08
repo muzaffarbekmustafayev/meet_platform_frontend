@@ -200,6 +200,9 @@ const translations = {
         notfound_title: "404",
         notfound_desc: "Sorry, the page you're looking for doesn't exist.",
         notfound_btn: "Go Home",
+        // Guest features
+        guest_meeting_created: "Meeting created! Register to save & access history.",
+        guest_register_now: "Register",
         // Misc
         cancel: "Cancel",
     },
@@ -393,6 +396,9 @@ const translations = {
         notfound_title: "404",
         notfound_desc: "Kechirasiz, siz qidirayotgan sahifa mavjud emas.",
         notfound_btn: "Bosh sahifaga",
+        // Guest features
+        guest_meeting_created: "Uchrashuv yaratildi! Tarixini saqlash uchun ro'yxatdan o'ting.",
+        guest_register_now: "Ro'yxatdan o'tish",
     },
     ru: {
         dashboard: "Панель управления",
@@ -584,6 +590,9 @@ const translations = {
         notfound_title: "404",
         notfound_desc: "Извините, страница, которую вы ищете, не существует.",
         notfound_btn: "На главную",
+        // Guest features
+        guest_meeting_created: "Встреча создана! Зарегистрируйтесь, чтобы сохранить и просмотреть историю.",
+        guest_register_now: "Зарегистрироваться",
     }
 };
 
