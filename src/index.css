@@ -9,6 +9,38 @@
   --bg-dark: #0B0E14;
   --card-dark: #161B22;
   --border-dark: rgba(255, 255, 255, 0.08);
+
+  /* Light mode tokens */
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --ring: rgba(14, 113, 235, 0.25);
+}
+
+.dark {
+  --bg: #0B0E14;
+  --surface: #161B22;
+  --surface-2: #1e2430;
+  --border: rgba(255,255,255,0.08);
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --ring: rgba(14, 113, 235, 0.35);
+}
+
+/* Smooth theme transitions — only on intentional toggle, not on initial load */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Opt-out of transition for elements where it's jarring */
+video, img, svg, canvas, input, textarea,
+[data-no-transition] {
+  transition: none !important;
 }
 
 body {
@@ -18,7 +50,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f8fafc;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .dark body {

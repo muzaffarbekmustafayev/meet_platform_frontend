@@ -2,7 +2,7 @@ import React from 'react';
 import {
     Mic, MicOff, Video as VideoIcon, VideoOff, MonitorUp, MonitorOff,
     Circle, StopCircle, Hand, Settings, MessageSquare,
-    Users, Copy, Check, LogOut, Monitor, Volume2
+    Users, Copy, Check, LogOut, Monitor, Volume2, PhoneOff, MoreHorizontal
 } from 'lucide-react';
 
 const RoomBottomControls = ({
@@ -18,16 +18,23 @@ const RoomBottomControls = ({
     showChat, setShowChat,
     showParticipants, setShowParticipants,
     unreadMessages,
+    waitingBadge = 0,
     roomUsers,
     leaveRoom,
+    onHoldToTalkStart,
+    onHoldToTalkEnd,
+    mobileMenuOpen,
+    setMobileMenuOpen,
 }) => {
     const ctrlBase = 'flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px]';
     const iconBtn = (active) => `${ctrlBase} ${active
         ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400'
         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`;
 
+    const mobileToolCount = unreadMessages + waitingBadge;
+
     return (
-        <div className="h-auto min-h-[4.5rem] md:h-20 bg-white dark:bg-[#1a1d26] border-t border-gray-200 dark:border-white/8 flex flex-wrap md:flex-nowrap items-center justify-between px-3 md:px-8 py-2 md:py-0 z-50 gap-y-2 transition-colors">
+        <div className="relative h-auto min-h-[4.5rem] md:h-20 bg-white dark:bg-[#1a1d26] border-t border-gray-200 dark:border-white/8 flex flex-wrap md:flex-nowrap items-center justify-between px-3 md:px-8 py-2 md:py-0 z-50 gap-y-2 transition-colors">
 
             {/* Left: Meeting ID */}
             <div
@@ -49,7 +56,16 @@ const RoomBottomControls = ({
             <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-3 flex-1 md:flex-none mx-auto">
                 {myRole !== 'guest' && (
                     <>
-                        <button onClick={toggleMute} className={iconBtn(isMuted)}>
+                        <button
+                            onClick={toggleMute}
+                            onMouseDown={onHoldToTalkStart}
+                            onMouseUp={onHoldToTalkEnd}
+                            onMouseLeave={onHoldToTalkEnd}
+                            onTouchStart={onHoldToTalkStart}
+                            onTouchEnd={onHoldToTalkEnd}
+                            className={iconBtn(isMuted)}
+                            title="Click to toggle, hold to talk"
+                        >
                             {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
                             <span className="text-[9px] font-semibold">{isMuted ? 'Unmute' : 'Mute'}</span>
                         </button>
@@ -59,9 +75,9 @@ const RoomBottomControls = ({
                             <span className="text-[9px] font-semibold">Video</span>
                         </button>
 
-                        <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden sm:block" />
+                        <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden md:block" />
 
-                        <div className="relative hidden sm:block">
+                        <div className="relative hidden md:block">
                             <button
                                 onClick={() => isSharingScreen ? stopScreenShare() : setShowShareMenu(!showShareMenu)}
                                 className={`${ctrlBase} ${isSharingScreen
@@ -94,7 +110,7 @@ const RoomBottomControls = ({
                         {canRecord && (
                             <button
                                 onClick={isRecording ? stopRecording : startRecording}
-                                className={`${ctrlBase} hidden sm:flex ${isRecording
+                                className={`${ctrlBase} hidden md:flex ${isRecording
                                     ? 'bg-red-50 dark:bg-red-600/20 text-red-500 dark:text-red-400'
                                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}
                             >
@@ -110,7 +126,7 @@ const RoomBottomControls = ({
 
                         <button
                             onClick={raiseHand}
-                            className={`${ctrlBase} hidden sm:flex text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white`}
+                            className={`${ctrlBase} hidden md:flex text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white`}
                         >
                             <Hand size={18} />
                             <span className="text-[9px] font-semibold">Qo'l</span>
@@ -123,7 +139,7 @@ const RoomBottomControls = ({
             <div className="flex items-center gap-1 sm:gap-2">
                 <button
                     onClick={() => setShowSettings(!showSettings)}
-                    className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] hidden sm:flex ${showSettings
+                    className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] hidden md:flex ${showSettings
                         ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
                         : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}
                 >
@@ -136,11 +152,11 @@ const RoomBottomControls = ({
                     className={`relative flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] ${showChat
                         ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
                         : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}
-                >
-                    <MessageSquare size={18} />
-                    {unreadMessages > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-[8px] font-bold rounded-full flex items-center justify-center text-white">
-                            {unreadMessages}
+                    >
+                        <MessageSquare size={18} />
+                        {unreadMessages > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-[8px] font-bold rounded-full flex items-center justify-center text-white">
+                                {unreadMessages}
                         </span>
                     )}
                     <span className="text-[9px] font-semibold">Chat</span>
@@ -153,19 +169,65 @@ const RoomBottomControls = ({
                         : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}
                 >
                     <Users size={18} />
+                    {waitingBadge > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-500 text-[8px] font-bold rounded-full flex items-center justify-center text-white animate-pulse">
+                            {waitingBadge}
+                        </span>
+                    )}
                     <span className="text-[9px] font-semibold">Odamlar {roomUsers.length > 0 && `(${roomUsers.length})`}</span>
                 </button>
 
-                <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden sm:block mx-1" />
+                <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden md:block mx-1" />
+
+                <button
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className={`relative md:hidden flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] ${mobileMenuOpen
+                        ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}
+                >
+                    <MoreHorizontal size={18} />
+                    {mobileToolCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-[8px] font-bold rounded-full flex items-center justify-center text-white">
+                            {mobileToolCount}
+                        </span>
+                    )}
+                    <span className="text-[9px] font-semibold">More</span>
+                </button>
 
                 <button
                     onClick={leaveRoom}
-                    className="flex flex-col items-center gap-1 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors shadow-md"
+                    className="hidden md:flex flex-col items-center gap-1 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl transition-colors shadow-md shadow-red-500/20"
                 >
-                    <LogOut size={18} />
-                    <span className="text-[9px] font-semibold">Chiqish</span>
+                    <PhoneOff size={18} />
+                    <span className="text-[9px] font-semibold">End</span>
                 </button>
             </div>
+
+            {mobileMenuOpen && (
+                <div className="absolute bottom-full right-3 mb-3 w-56 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1e222d] shadow-2xl p-2 md:hidden">
+                    <button onClick={() => { setShowSettings(!showSettings); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                        <Settings size={16} /> Sozlama
+                    </button>
+                    <button onClick={() => { raiseHand(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                        <Hand size={16} /> Qo'l ko'tarish
+                    </button>
+                    {myRole !== 'guest' && (
+                        <>
+                            <button onClick={() => { isSharingScreen ? stopScreenShare() : setShowShareMenu(!showShareMenu); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                                {isSharingScreen ? <MonitorOff size={16} /> : <MonitorUp size={16} />} {isSharingScreen ? 'Ulashishni to‘xtatish' : 'Ekran ulashish'}
+                            </button>
+                            {canRecord && (
+                                <button onClick={() => { isRecording ? stopRecording() : startRecording(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5">
+                                    {isRecording ? <StopCircle size={16} /> : <Circle size={16} />} {isRecording ? 'Yozishni to‘xtatish' : 'Yozib olish'}
+                                </button>
+                            )}
+                        </>
+                    )}
+                    <button onClick={leaveRoom} className="mt-1 w-full flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-3 text-sm font-semibold text-white hover:bg-red-700">
+                        <PhoneOff size={16} /> Chiqish
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

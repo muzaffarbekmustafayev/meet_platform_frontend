@@ -1,415 +1,672 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api';
-import Sidebar from '../components/Sidebar';
-import TopHeader from '../components/TopHeader';
 import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../components/ConfirmModal';
+import ThemeToggle from '../components/ThemeToggle';
+import LanguageToggle from '../components/LanguageToggle';
+import Select from '../components/Select';
 
+const APP_NAME = import.meta.env.VITE_APP_NAME || 'Meetra';
+
+// ─── SVG Icons ────────────────────────────────────────────────────────────────
+const Icon = {
+    dashboard: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />,
+    users:     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
+    meetings:  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />,
+    chart:     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
+    logout:    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />,
+    back:      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M10 19l-7-7m0 0l7-7m-7 7h18" />,
+    menu:      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />,
+    close:     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />,
+    sun:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />,
+    moon:      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />,
+    refresh:   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />,
+    plus:      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />,
+    edit:      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />,
+    block:     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />,
+    trash:     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />,
+    msg:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />,
+    shield:    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />,
+};
+
+const Ico = ({ d, size = 18, className = '' }) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" viewBox="0 0 24 24" className={className}>{d}</svg>
+);
+
+// ─── Charts (pure SVG, no lib) ────────────────────────────────────────────────
+const SparkLine = ({ data = [], keyName, color }) => {
+    const vals = data.map(d => d[keyName]);
+    const max = Math.max(...vals, 1);
+    const w = 100 / Math.max(data.length - 1, 1);
+    const pts = vals.map((v, i) => `${i * w},${40 - (v / max) * 38}`).join(' ');
+    const area = `0,40 ${pts} ${(data.length - 1) * w},40`;
+    return (
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="w-full h-10">
+            <defs>
+                <linearGradient id={`sp-${keyName}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            <polygon points={area} fill={`url(#sp-${keyName})`} />
+            <polyline points={pts} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+    );
+};
+
+const BarChart = ({ data = [], height = 160 }) => {
+    const maxVal = Math.max(...data.flatMap(d => [d.users, d.meetings]), 1);
+    const bw = 100 / data.length;
+    const gap = bw * 0.18;
+    const labelStep = Math.ceil(data.length / 6);
+    return (
+        <div>
+            <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
+                {data.map((d, i) => {
+                    const uh = (d.users / maxVal) * (height - 4);
+                    const mh = (d.meetings / maxVal) * (height - 4);
+                    const x = i * bw + gap;
+                    const hw = (bw - gap * 2) / 2;
+                    return (
+                        <g key={i}>
+                            <rect x={x} y={height - uh} width={hw} height={uh} fill="#3b82f6" opacity="0.85" rx="0.8" />
+                            <rect x={x + hw + 0.4} y={height - mh} width={hw} height={mh} fill="#8b5cf6" opacity="0.85" rx="0.8" />
+                        </g>
+                    );
+                })}
+            </svg>
+            <div className="flex justify-between mt-1 px-0.5">
+                {data.map((d, i) => i % labelStep === 0 && (
+                    <span key={i} className="text-[9px] text-gray-400 dark:text-gray-600">{d.date?.slice(5)}</span>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const DonutChart = ({ segments = [], size = 84 }) => {
+    const total = segments.reduce((s, g) => s + g.value, 0) || 1;
+    const r = 15.9, c = 2 * Math.PI * r;
+    let off = 0;
+    return (
+        <svg width={size} height={size} viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r={r} fill="none" stroke="#e5e7eb" strokeWidth="4" />
+            {segments.map((seg, i) => {
+                const pct = seg.value / total;
+                const dash = pct * c, gap = c - dash;
+                const el = <circle key={i} cx="18" cy="18" r={r} fill="none" stroke={seg.color}
+                    strokeWidth="4" strokeDasharray={`${dash} ${gap}`}
+                    strokeDashoffset={-(off * c)} transform="rotate(-90 18 18)" />;
+                off += pct;
+                return el;
+            })}
+            <circle cx="18" cy="18" r="10" fill="white" />
+        </svg>
+    );
+};
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+const StatCard = ({ label, value, sub, accent, icon, spark, sparkKey }) => (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col gap-3">
+        <div className="flex items-start justify-between">
+            <div>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{label}</p>
+                <p className={`text-3xl font-bold ${accent}`}>{value ?? 0}</p>
+                {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>}
+            </div>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${accent.replace('text-', 'bg-').replace('-600', '-50').replace('-500', '-50').replace('dark:text-', '').split(' ')[0]}`}>
+                <Ico d={icon} size={20} className={accent.split(' ')[0]} />
+            </div>
+        </div>
+        {spark && <SparkLine data={spark} keyName={sparkKey} color={accent.includes('blue') ? '#3b82f6' : accent.includes('purple') ? '#8b5cf6' : accent.includes('emerald') ? '#10b981' : '#f59e0b'} />}
+    </div>
+);
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 const AdminPage = () => {
-    const [stats, setStats] = useState(null);
-    const [users, setUsers] = useState([]);
-    const [meetings, setMeetings] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('overview');
-    const [showModal, setShowModal] = useState(false);
-    const [editMode, setEditMode] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [stats, setStats]           = useState(null);
+    const [users, setUsers]           = useState([]);
+    const [meetings, setMeetings]     = useState([]);
+    const [loading, setLoading]       = useState(true);
+    const [activeTab, setActiveTab]   = useState('overview');
+    const [chartDays, setChartDays]   = useState(30);
+    const [sidebarOpen, setSidebar]   = useState(false);
+    const [showModal, setShowModal]   = useState(false);
+    const [editMode, setEditMode]     = useState(false);
     const [currentUser, setCurrentUser] = useState({ name: '', email: '', password: '', username: '', role: 'user' });
-    const navigate = useNavigate();
-    const { t } = useContext(ThemeLanguageContext);
+    const [userSearch, setUserSearch] = useState('');
+    const [userRole, setUserRole]     = useState('all');
+    const [userStatus, setUserStatus] = useState('all');
+    const [mtgStatus, setMtgStatus]   = useState('all');
+    const [mtgType, setMtgType]       = useState('all');
 
-    const fetchData = async () => {
+    const navigate  = useNavigate();
+    const { t, theme, toggleTheme, lang, changeLanguage } = useContext(ThemeLanguageContext);
+    const { user: me, logout } = useAuth();
+    const toast     = useToast();
+    const { confirm, modal: confirmModal } = useConfirm();
+
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [statsRes, usersRes, meetingsRes] = await Promise.all([
-                API.get('/api/admin/stats'),
+            const [s, u, m] = await Promise.all([
+                API.get(`/api/admin/stats?days=${chartDays}`),
                 API.get('/api/admin/users'),
-                API.get('/api/admin/meetings')
+                API.get('/api/admin/meetings'),
             ]);
-            setStats(statsRes.data);
-            setUsers(usersRes.data || []);
-            setMeetings(meetingsRes.data || []);
-        } catch (error) {
-            console.error('Failed to fetch admin data', error);
-            setUsers([]);
-            setMeetings([]);
-        } finally {
-            setLoading(false);
-        }
-    };
+            setStats(s.data);
+            setUsers(u.data || []);
+            setMeetings(m.data || []);
+        } catch { /* silent */ }
+        finally { setLoading(false); }
+    }, [chartDays]);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    useEffect(() => { fetchData(); }, [fetchData]);
 
-    const handleLogout = () => {
-        localStorage.removeItem('userInfo');
-        window.location.reload();
-    };
+    const handleLogout = () => { logout(); navigate('/login', { replace: true }); };
 
     const toggleBlock = async (id) => {
-        try {
-            await API.put(`/api/admin/users/${id}/block`);
-            fetchData();
-        } catch (error) {
-            alert('Action failed');
-        }
+        try { await API.put(`/api/admin/users/${id}/block`); fetchData(); }
+        catch { toast.error(t('action_failed')); }
     };
 
     const handleDeleteMeeting = async (id) => {
-        if (window.confirm("Are you sure you want to delete this meeting?")) {
-            try {
-                await API.delete(`/api/admin/meetings/${id}`);
-                fetchData();
-            } catch (error) {
-                alert('Action failed');
-            }
-        }
+        if (!await confirm(t('confirm_delete_meeting'))) return;
+        try { await API.delete(`/api/admin/meetings/${id}`); toast.success(t('meeting_deleted')); fetchData(); }
+        catch { toast.error(t('action_failed')); }
     };
 
     const handleSaveUser = async (e) => {
         e.preventDefault();
         try {
-            if (editMode) {
-                await API.put(`/api/admin/users/${currentUser._id}`, currentUser);
-            } else {
-                await API.post('/api/admin/users', currentUser);
-            }
+            if (editMode) await API.put(`/api/admin/users/${currentUser._id}`, currentUser);
+            else await API.post('/api/admin/users', currentUser);
             setShowModal(false);
-            setCurrentUser({ name: '', email: '', password: '', role: 'participant' });
+            setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' });
             fetchData();
-        } catch (error) {
-            alert(error.response?.data?.message || 'Save failed');
-        }
+            toast.success(editMode ? 'User updated' : 'User created');
+        } catch (err) { toast.error(err.response?.data?.message || 'Save failed'); }
     };
 
-    const openEditModal = (user) => {
-        setCurrentUser({ ...user, password: '' });
-        setEditMode(true);
-        setShowModal(true);
-    };
+    const openEdit = (u) => { setCurrentUser({ ...u, password: '' }); setEditMode(true); setShowModal(true); };
+    const openAdd  = () => { setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' }); setEditMode(false); setShowModal(true); };
 
-    const openAddModal = () => {
-        setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' });
-        setEditMode(false);
-        setShowModal(true);
-    };
+    const filteredUsers = users.filter(u => {
+        const q = userSearch.toLowerCase();
+        return (!q || u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q))
+            && (userRole   === 'all' || u.role === userRole)
+            && (userStatus === 'all' || (userStatus === 'blocked' ? u.isBlocked : !u.isBlocked));
+    });
 
-    if (loading && !stats) return (
-        <div className="flex h-screen items-center justify-center bg-gray-50">
-            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-        </div>
+    const filteredMtgs = meetings.filter(m =>
+        (mtgStatus === 'all' || m.status   === mtgStatus) &&
+        (mtgType   === 'all' || m.roomType === mtgType)
     );
 
-    const navigationItems = [
-        {
-            id: 'overview',
-            label: t('overview'),
-            icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-        },
-        {
-            id: 'users',
-            label: t('users'),
-            icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-        },
-        {
-            id: 'meetings',
-            label: t('meetings'),
-            icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-        },
-        {
-            id: 'back',
-            label: t('back_to_app'),
-            path: '/',
-            icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-        }
+    const chart = stats?.chartData || [];
+
+    const navItems = [
+        { id: 'overview', label: 'Overview',    d: Icon.dashboard },
+        { id: 'users',    label: t('users'),    d: Icon.users },
+        { id: 'meetings', label: t('meetings'), d: Icon.meetings },
     ];
 
-    const topHeaderTitle = activeTab === 'overview' ? t('overview') : activeTab === 'users' ? t('users') : t('meetings');
-    
-    const actionButton = activeTab === 'users' ? (
-        <button 
-            onClick={openAddModal}
-            className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-        >
-            + {t('add_user')}
-        </button>
-    ) : null;
-
     return (
-        <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans overflow-hidden transition-colors">
-            <Sidebar 
-                title="Admin"
-                titleInitial="A"
-                navigationItems={navigationItems}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                handleLogout={handleLogout}
-                isSidebarOpen={isSidebarOpen}
-                setIsSidebarOpen={setIsSidebarOpen}
-            />
+        <div className="flex h-screen bg-gray-100 dark:bg-gray-950 font-sans overflow-hidden">
 
-            {/* Content Area */}
-            <main className="flex-1 overflow-y-auto flex flex-col">
-                <TopHeader 
-                    title={topHeaderTitle}
-                    isSidebarOpen={isSidebarOpen}
-                    setIsSidebarOpen={setIsSidebarOpen}
-                    actionButton={actionButton}
-                />
+            {/* ── Sidebar ── */}
+            {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setSidebar(false)} />}
+            <aside className={`fixed inset-y-0 left-0 z-40 w-60 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-200 md:relative md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                {/* Logo */}
+                <div className="h-16 flex items-center gap-3 px-5 border-b border-gray-200 dark:border-gray-800">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                        <Ico d={Icon.shield} size={16} className="text-white" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">{APP_NAME}</p>
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">Admin Panel</p>
+                    </div>
+                </div>
 
-                <div className="max-w-7xl mx-auto w-full p-6 md:p-8">
-                    {activeTab === 'overview' ? (
-                        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                            {[
-                                { label: t('total_users'), value: stats?.totalUsers, color: 'text-blue-600 dark:text-blue-400' },
-                                { label: t('active_meetings'), value: stats?.totalMeetings, color: 'text-indigo-600 dark:text-indigo-400' },
-                                { label: t('host_nodes'), value: stats?.hosts, color: 'text-emerald-600 dark:text-emerald-400' },
-                                { label: t('participants'), value: stats?.participants, color: 'text-amber-600 dark:text-amber-400' },
-                            ].map((s, i) => (
-                                <div key={i} className="relative overflow-hidden bg-white dark:bg-gray-800/80 backdrop-blur-md p-5 sm:p-7 border border-gray-100 dark:border-gray-700/50 shadow-lg shadow-gray-200/50 dark:shadow-black/20 rounded-2xl sm:rounded-[1.5rem] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-gray-200 dark:hover:border-gray-600">
-                                    <div className="relative z-10">
-                                        <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-widest">{s.label}</p>
-                                        <p className={`text-2xl sm:text-4xl font-black ${s.color} drop-shadow-sm tracking-tight`}>{s.value || 0}</p>
+                {/* Nav */}
+                <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+                    <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest px-3 pb-2 pt-1">Boshqaruv</p>
+                    {navItems.map(item => (
+                        <button key={item.id} onClick={() => { setActiveTab(item.id); setSidebar(false); }}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'}`}>
+                            <Ico d={item.d} size={17} />
+                            {item.label}
+                        </button>
+                    ))}
+                </nav>
+
+                {/* User block */}
+                <div className="border-t border-gray-200 dark:border-gray-800 p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                            {me?.name?.[0]?.toUpperCase() || 'A'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{me?.name || 'Admin'}</p>
+                            <p className="text-xs text-gray-400 capitalize">{me?.role || 'admin'}</p>
+                        </div>
+                    </div>
+                    <button onClick={handleLogout}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 transition-colors">
+                        <Ico d={Icon.logout} size={15} />
+                        {t('sign_out')}
+                    </button>
+                </div>
+            </aside>
+
+            {/* ── Main Content ── */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+
+                {/* Top Bar */}
+                <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-6 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setSidebar(true)} className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <Ico d={Icon.menu} size={20} />
+                        </button>
+                        {/* Breadcrumb */}
+                        <div className="flex items-center gap-1.5 text-sm">
+                            <span className="text-gray-400 dark:text-gray-500">Admin</span>
+                            <span className="text-gray-300 dark:text-gray-700">/</span>
+                            <span className="font-semibold text-gray-800 dark:text-white capitalize">{activeTab}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <LanguageToggle compact={false} />
+                        <ThemeToggle />
+                        {/* Refresh */}
+                        <button onClick={fetchData} disabled={loading} className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-40">
+                            <Ico d={Icon.refresh} size={16} className={loading ? 'animate-spin' : ''} />
+                        </button>
+                        {/* Add user (users tab) */}
+                        {activeTab === 'users' && (
+                            <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+                                <Ico d={Icon.plus} size={15} className="text-white" />
+                                {t('add_user')}
+                            </button>
+                        )}
+                    </div>
+                </header>
+
+                {/* Page content */}
+                <main className="flex-1 overflow-y-auto p-4 md:p-6">
+
+                    {loading && !stats ? (
+                        <div className="flex items-center justify-center h-full">
+                            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                        </div>
+                    ) : (
+
+                    <>
+                    {/* ══ OVERVIEW ══ */}
+                    {activeTab === 'overview' && (
+                        <div className="space-y-5">
+                            {/* Top 4 stat cards */}
+                            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                                <StatCard label={t('total_users')} value={stats?.totalUsers} sub={`+${stats?.newUsersToday ?? 0} bugun`}
+                                    accent="text-blue-600 dark:text-blue-400" icon={Icon.users} spark={chart} sparkKey="users" />
+                                <StatCard label="Faol uchrashuvlar" value={stats?.activeMeetings} sub={`+${stats?.newMeetingsToday ?? 0} bugun`}
+                                    accent="text-purple-600 dark:text-purple-400" icon={Icon.meetings} spark={chart} sparkKey="meetings" />
+                                <StatCard label="Jami uchrashuvlar" value={stats?.totalMeetings}
+                                    sub={`${stats?.publicMeetings ?? 0} ommaviy · ${stats?.privateMeetings ?? 0} shaxsiy`}
+                                    accent="text-emerald-600 dark:text-emerald-400" icon={Icon.chart} />
+                                <StatCard label="Jami xabarlar" value={stats?.totalMessages}
+                                    accent="text-amber-600 dark:text-amber-400" icon={Icon.msg} />
+                            </div>
+
+                            {/* Chart + side panels */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                                {/* Bar chart — 2/3 width */}
+                                <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-800 dark:text-white">Faollik grafigi</h3>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Yangi foydalanuvchilar va uchrashuvlar soni</p>
+                                        </div>
+                                        <div className="flex gap-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                            {[7, 14, 30].map(d => (
+                                                <button key={d} onClick={() => setChartDays(d)}
+                                                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${chartDays === d ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                                                    {d}k
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {/* Legend */}
+                                    <div className="flex gap-5 mb-4">
+                                        <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                            <span className="w-3 h-3 rounded-sm bg-blue-500" /> Foydalanuvchilar
+                                        </span>
+                                        <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                            <span className="w-3 h-3 rounded-sm bg-purple-500" /> Uchrashuvlar
+                                        </span>
+                                    </div>
+                                    <BarChart data={chart} height={160} />
+                                </div>
+
+                                {/* Right column */}
+                                <div className="space-y-4">
+                                    {/* User roles */}
+                                    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Foydalanuvchi rollari</h3>
+                                        <div className="flex items-center gap-5">
+                                            <DonutChart size={84} segments={[
+                                                { value: stats?.users  ?? 0, color: '#3b82f6' },
+                                                { value: stats?.admins ?? 0, color: '#8b5cf6' },
+                                                { value: stats?.guests ?? 0, color: '#f59e0b' },
+                                            ]} />
+                                            <div className="space-y-2 flex-1">
+                                                {[
+                                                    { label: 'User',    val: stats?.users,  color: 'bg-blue-500' },
+                                                    { label: 'Admin',   val: stats?.admins, color: 'bg-purple-500' },
+                                                    { label: 'Mehmon',  val: stats?.guests, color: 'bg-amber-400' },
+                                                ].map(r => (
+                                                    <div key={r.label} className="flex items-center gap-2">
+                                                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.color}`} />
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 flex-1">{r.label}</span>
+                                                        <span className="text-xs font-bold text-gray-800 dark:text-white">{r.val ?? 0}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Meeting types */}
+                                    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Uchrashuv turlari</h3>
+                                        <div className="flex items-center gap-5">
+                                            <DonutChart size={84} segments={[
+                                                { value: stats?.publicMeetings  ?? 0, color: '#10b981' },
+                                                { value: stats?.privateMeetings ?? 0, color: '#f43f5e' },
+                                            ]} />
+                                            <div className="space-y-2 flex-1">
+                                                {[
+                                                    { label: 'Ommaviy',  val: stats?.publicMeetings,  color: 'bg-emerald-500' },
+                                                    { label: 'Shaxsiy',  val: stats?.privateMeetings, color: 'bg-rose-500' },
+                                                ].map(r => (
+                                                    <div key={r.label} className="flex items-center gap-2">
+                                                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.color}`} />
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 flex-1">{r.label}</span>
+                                                        <span className="text-xs font-bold text-gray-800 dark:text-white">{r.val ?? 0}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Bottom row */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {[
+                                    { label: 'Adminlar',       val: stats?.admins,      color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                                    { label: 'Mehmonlar',      val: stats?.guests,      color: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                                    { label: 'Bloklangan',     val: stats?.blockedUsers, color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                                    { label: 'Bugun aktivlik', val: (stats?.newUsersToday ?? 0) + (stats?.newMeetingsToday ?? 0), color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-900/20', sub: `${stats?.newUsersToday ?? 0}u · ${stats?.newMeetingsToday ?? 0}m` },
+                                ].map(c => (
+                                    <div key={c.label} className={`rounded-xl border border-gray-200 dark:border-gray-800 p-4 ${c.bg}`}>
+                                        <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{c.label}</p>
+                                        <p className={`text-2xl font-bold ${c.color}`}>{c.val ?? 0}</p>
+                                        {c.sub && <p className="text-[11px] text-gray-400 mt-0.5">{c.sub}</p>}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Trend lines */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {[
+                                    { title: "Foydalanuvchilar o'sishi", val: stats?.totalUsers, key: 'users', color: '#3b82f6', accent: 'text-blue-600 dark:text-blue-400' },
+                                    { title: "Uchrashuvlar o'sishi",    val: stats?.totalMeetings, key: 'meetings', color: '#8b5cf6', accent: 'text-purple-600 dark:text-purple-400' },
+                                ].map(c => (
+                                    <div key={c.key} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div>
+                                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{c.title}</h3>
+                                                <p className="text-xs text-gray-400">So'nggi {chartDays} kun</p>
+                                            </div>
+                                            <span className={`text-2xl font-bold ${c.accent}`}>{c.val ?? 0}</span>
+                                        </div>
+                                        <SparkLine data={chart} keyName={c.key} color={c.color} />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    ) : activeTab === 'users' ? (
+                    )}
+
+                    {/* ══ USERS ══ */}
+                    {activeTab === 'users' && (
                         <div className="space-y-4">
-                            {/* Desktop Table */}
-                            <div className="hidden md:block bg-white dark:bg-gray-800/90 backdrop-blur-xl border border-gray-100 dark:border-gray-700/50 shadow-xl shadow-gray-200/50 dark:shadow-black/20 rounded-[1.5rem] overflow-hidden transition-all duration-300">
+                            {/* Filters */}
+                            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex flex-wrap gap-3 items-center">
+                                <input value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                                    placeholder="Ism yoki email qidirish..."
+                                    className="flex-1 min-w-[180px] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 transition" />
+                                <div className="w-40">
+                                    <Select size="sm" value={userRole} onChange={setUserRole} options={[
+                                        { value: 'all', label: 'Barcha rollar' },
+                                        { value: 'user', label: 'User' },
+                                        { value: 'admin', label: 'Admin' },
+                                        { value: 'guest', label: 'Mehmon' },
+                                    ]} />
+                                </div>
+                                <div className="w-40">
+                                    <Select size="sm" value={userStatus} onChange={setUserStatus} options={[
+                                        { value: 'all', label: 'Barcha holat' },
+                                        { value: 'active', label: 'Faol' },
+                                        { value: 'blocked', label: 'Bloklangan' },
+                                    ]} />
+                                </div>
+                                <span className="text-xs text-gray-400 ml-auto">{filteredUsers.length} ta natija</span>
+                            </div>
+
+                            {/* Table */}
+                            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700/50">
-                                        <thead className="bg-gray-50/80 dark:bg-gray-900/40">
-                                            <tr>
-                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('name_email')}</th>
-                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('role')}</th>
-                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('status')}</th>
-                                                <th scope="col" className="px-6 py-4 text-right text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('actions')}</th>
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+                                                {['Foydalanuvchi', 'Role', 'Holat', 'Ro\'yxatdan', 'Amallar'].map((h, i) => (
+                                                    <th key={h} className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 4 ? 'text-right' : 'text-left'}`}>{h}</th>
+                                                ))}
                                             </tr>
                                         </thead>
-                                        <tbody className="bg-white dark:bg-gray-800/50 divide-y divide-gray-100 dark:divide-gray-700/50">
-                                            {users.length > 0 ? users.map((u) => (
-                                                <tr key={u._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex items-center">
-                                                            <div className="flex-shrink-0 h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 font-medium">
-                                                                {u.name ? u.name[0].toUpperCase() : '?'}
+                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                            {filteredUsers.length > 0 ? filteredUsers.map(u => (
+                                                <tr key={u._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                                                                {u.name?.[0]?.toUpperCase() || '?'}
                                                             </div>
-                                                            <div className="ml-4">
-                                                                <div className="text-sm font-medium text-gray-900 dark:text-white">{u.name}</div>
-                                                                <div className="text-sm text-gray-500 dark:text-gray-400">{u.email}</div>
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900 dark:text-white">{u.name}</p>
+                                                                <p className="text-xs text-gray-400">{u.email}</p>
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 capitalize">
-                                                            {u.role}
-                                                        </span>
+                                                    <td className="px-5 py-4">
+                                                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                                                            u.role === 'admin'  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
+                                                            u.role === 'guest'  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                                                                                  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                                        }`}>{u.role}</span>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${u.isBlocked ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'}`}>
-                                                            {u.isBlocked ? 'Blocked' : 'Active'}
-                                                        </span>
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className={`w-1.5 h-1.5 rounded-full ${u.isBlocked ? 'bg-red-500' : 'bg-green-500'}`} />
+                                                            <span className="text-xs text-gray-600 dark:text-gray-400">{u.isBlocked ? 'Bloklangan' : 'Faol'}</span>
+                                                        </div>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <button onClick={() => openEditModal(u)} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-4">Edit</button>
-                                                        <button onClick={() => toggleBlock(u._id)} className={u.isBlocked ? 'text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300' : 'text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300'}>
-                                                            {u.isBlocked ? 'Unblock' : 'Block'}
+                                                    <td className="px-5 py-4 text-xs text-gray-400">{new Date(u.createdAt).toLocaleDateString()}</td>
+                                                    <td className="px-5 py-4 text-right">
+                                                        <button onClick={() => openEdit(u)} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 mr-3 transition-colors">
+                                                            <Ico d={Icon.edit} size={13} /> Tahrirlash
+                                                        </button>
+                                                        <button onClick={() => toggleBlock(u._id)} className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${u.isBlocked ? 'text-green-600 dark:text-green-400 hover:text-green-800' : 'text-red-600 dark:text-red-400 hover:text-red-800'}`}>
+                                                            <Ico d={Icon.block} size={13} /> {u.isBlocked ? 'Ochish' : 'Bloklash'}
                                                         </button>
                                                     </td>
                                                 </tr>
                                             )) : (
-                                                <tr>
-                                                    <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                                                        No users found.
-                                                    </td>
-                                                </tr>
+                                                <tr><td colSpan="5" className="px-5 py-12 text-center text-sm text-gray-400">Foydalanuvchilar topilmadi.</td></tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>
-
-                            {/* Mobile Card View */}
-                            <div className="md:hidden grid grid-cols-1 gap-4">
-                                {users.length > 0 ? users.map((u) => (
-                                    <div key={u._id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                                        <div className="flex items-center mb-4">
-                                            <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
-                                                {u.name ? u.name[0].toUpperCase() : '?'}
-                                            </div>
-                                            <div className="ml-3">
-                                                <div className="text-sm font-bold text-gray-900 dark:text-white">{u.name}</div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">{u.email}</div>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center pt-4 border-t border-gray-50 dark:border-gray-700/50">
-                                            <div className="flex gap-2">
-                                                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 uppercase tracking-wider">{u.role}</span>
-                                                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${u.isBlocked ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'} uppercase tracking-wider`}>
-                                                    {u.isBlocked ? 'Blocked' : 'Active'}
-                                                </span>
-                                            </div>
-                                            <div className="flex gap-3">
-                                                <button onClick={() => openEditModal(u)} className="text-sm font-bold text-blue-600 dark:text-blue-400">Edit</button>
-                                                <button onClick={() => toggleBlock(u._id)} className={`text-sm font-bold ${u.isBlocked ? 'text-green-600' : 'text-red-600'}`}>{u.isBlocked ? 'Unblock' : 'Block'}</button>
-                                            </div>
-                                        </div>
+                                {filteredUsers.length > 0 && (
+                                    <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-3 flex items-center text-xs text-gray-400">
+                                        Jami: <span className="font-semibold text-gray-600 dark:text-gray-300 ml-1">{filteredUsers.length}</span> ta foydalanuvchi
                                     </div>
-                                )) : <div className="text-center py-10 text-gray-500">No users found.</div>}
+                                )}
                             </div>
                         </div>
-                    ) : activeTab === 'meetings' ? (
+                    )}
+
+                    {/* ══ MEETINGS ══ */}
+                    {activeTab === 'meetings' && (
                         <div className="space-y-4">
-                            {/* Desktop Table */}
-                            <div className="hidden md:block bg-white dark:bg-gray-800/90 backdrop-blur-xl border border-gray-100 dark:border-gray-700/50 shadow-xl shadow-gray-200/50 dark:shadow-black/20 rounded-[1.5rem] overflow-hidden transition-all duration-300">
+                            {/* Filters */}
+                            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex flex-wrap gap-3 items-center">
+                                <div className="w-44">
+                                    <Select size="sm" value={mtgStatus} onChange={setMtgStatus} options={[
+                                        { value: 'all', label: 'Barcha status' },
+                                        { value: 'active', label: 'Faol' },
+                                        { value: 'completed', label: 'Tugagan' },
+                                        { value: 'scheduled', label: 'Rejalashtirilgan' },
+                                    ]} />
+                                </div>
+                                <div className="w-36">
+                                    <Select size="sm" value={mtgType} onChange={setMtgType} options={[
+                                        { value: 'all', label: 'Barcha tur' },
+                                        { value: 'public', label: 'Ommaviy' },
+                                        { value: 'private', label: 'Shaxsiy' },
+                                    ]} />
+                                </div>
+                                <span className="text-xs text-gray-400 ml-auto">{filteredMtgs.length} ta natija</span>
+                            </div>
+
+                            {/* Table */}
+                            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700/50">
-                                        <thead className="bg-gray-50/80 dark:bg-gray-900/40">
-                                            <tr>
-                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('meeting_title_id')}</th>
-                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('host')}</th>
-                                                <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('date')}</th>
-                                                <th scope="col" className="px-6 py-4 text-right text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('actions')}</th>
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+                                                {['Uchrashuv', 'Xost', 'Tur', 'Status', 'Sana', 'Amallar'].map((h, i) => (
+                                                    <th key={h} className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 5 ? 'text-right' : 'text-left'}`}>{h}</th>
+                                                ))}
                                             </tr>
                                         </thead>
-                                        <tbody className="bg-white dark:bg-gray-800/50 divide-y divide-gray-100 dark:divide-gray-700/50">
-                                            {meetings.length > 0 ? meetings.map((m) => (
-                                                <tr key={m._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm font-medium text-gray-900 dark:text-white">{m.title}</div>
-                                                        <div className="text-sm text-gray-500 dark:text-gray-400">{m.meetingCode}</div>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                            {filteredMtgs.length > 0 ? filteredMtgs.map(m => (
+                                                <tr key={m._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+                                                    <td className="px-5 py-4">
+                                                        <p className="text-sm font-medium text-gray-900 dark:text-white">{m.title}</p>
+                                                        <p className="text-[11px] font-mono text-blue-500 mt-0.5">{m.meetingCode}</p>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm text-gray-900 dark:text-white">{m.hostId?.name || 'Unknown'}</div>
-                                                        <div className="text-sm text-gray-500 dark:text-gray-400">{m.hostId?.email || ''}</div>
+                                                    <td className="px-5 py-4">
+                                                        <p className="text-sm text-gray-700 dark:text-gray-300">{m.hostId?.name || '—'}</p>
+                                                        <p className="text-xs text-gray-400">{m.hostId?.email || ''}</p>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                        {new Date(m.createdAt).toLocaleString()}
+                                                    <td className="px-5 py-4">
+                                                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${m.roomType === 'public' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'}`}>
+                                                            {m.roomType === 'public' ? 'Ommaviy' : 'Shaxsiy'}
+                                                        </span>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <button onClick={() => handleDeleteMeeting(m._id)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">Delete</button>
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className={`w-1.5 h-1.5 rounded-full ${m.status === 'active' ? 'bg-blue-500 animate-pulse' : m.status === 'completed' ? 'bg-gray-400' : 'bg-amber-400'}`} />
+                                                            <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">{m.status}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-4 text-xs text-gray-400 whitespace-nowrap">{new Date(m.createdAt).toLocaleString()}</td>
+                                                    <td className="px-5 py-4 text-right">
+                                                        <button onClick={() => handleDeleteMeeting(m._id)}
+                                                            className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-800 transition-colors">
+                                                            <Ico d={Icon.trash} size={13} /> O'chirish
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             )) : (
-                                                <tr>
-                                                    <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                                                        No meetings found.
-                                                    </td>
-                                                </tr>
+                                                <tr><td colSpan="6" className="px-5 py-12 text-center text-sm text-gray-400">Uchrashuvlar topilmadi.</td></tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>
-
-                            {/* Mobile Card View */}
-                            <div className="md:hidden grid grid-cols-1 gap-4">
-                                {meetings.length > 0 ? meetings.map((m) => (
-                                    <div key={m._id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                                        <div className="mb-3">
-                                            <div className="text-sm font-bold text-gray-900 dark:text-white truncate">{m.title}</div>
-                                            <div className="text-xs text-blue-600 dark:text-blue-400 font-mono tracking-wider">{m.meetingCode}</div>
-                                        </div>
-                                        <div className="flex justify-between items-end">
-                                            <div className="space-y-1">
-                                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('host')}</div>
-                                                <div className="text-xs font-medium text-gray-700 dark:text-gray-300">{m.hostId?.name || 'Unknown'}</div>
-                                                <div className="text-[10px] text-gray-500">{new Date(m.createdAt).toLocaleDateString()}</div>
-                                            </div>
-                                            <button onClick={() => handleDeleteMeeting(m._id)} className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-xs font-bold transition-all active:scale-95">
-                                                Delete
-                                            </button>
-                                        </div>
+                                {filteredMtgs.length > 0 && (
+                                    <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-3 text-xs text-gray-400">
+                                        Jami: <span className="font-semibold text-gray-600 dark:text-gray-300 ml-1">{filteredMtgs.length}</span> ta uchrashuv
                                     </div>
-                                )) : <div className="text-center py-10 text-gray-500">No meetings found.</div>}
+                                )}
                             </div>
                         </div>
-                    ) : null}
-                </div>
-            </main>
+                    )}
+                    </>
+                    )}
+                </main>
+            </div>
 
-            {/* Premium Modal */}
+            {/* ── User Modal ── */}
             {showModal && (
-                <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300">
-                    <div className="bg-white dark:bg-gray-800/95 w-full max-w-md rounded-[2rem] shadow-2xl shadow-blue-900/20 dark:shadow-black/50 border border-white/50 dark:border-gray-700/50 overflow-hidden transform scale-100 opacity-100 transition-all">
-                        <div className="px-6 sm:px-8 py-5 sm:py-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
-                            <h3 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white tracking-tight">{editMode ? 'Edit User' : t('add_user')}</h3>
-                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors bg-white dark:bg-gray-800 rounded-full p-2 shadow-sm border border-gray-100 dark:border-gray-700">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                            <h3 className="text-base font-bold text-gray-900 dark:text-white">{editMode ? 'Foydalanuvchini tahrirlash' : t('add_user')}</h3>
+                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                                <Ico d={Icon.close} size={18} />
                             </button>
                         </div>
-                        <form onSubmit={handleSaveUser} className="p-6 sm:p-8">
-                            <div className="space-y-5">
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">Name</label>
-                                    <input 
-                                        type="text" 
-                                        required
-                                        value={currentUser.name}
-                                        onChange={(e) => setCurrentUser({...currentUser, name: e.target.value})}
-                                        className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
-                                        placeholder="Full Name"
-                                    />
+                        {/* Form */}
+                        <form onSubmit={handleSaveUser} className="p-6 space-y-4">
+                            {[
+                                { label: 'To\'liq ism',  key: 'name',     type: 'text',     required: true,       ph: 'Ism Familiya' },
+                                { label: 'Email',        key: 'email',    type: 'email',    required: true,       ph: 'email@example.com' },
+                                { label: 'Username',     key: 'username', type: 'text',     required: false,      ph: 'username (ixtiyoriy)' },
+                                { label: editMode ? 'Parol (o\'zgartirmaslik uchun bo\'sh qoldiring)' : 'Parol',
+                                                         key: 'password', type: 'password', required: !editMode,  ph: '••••••••' },
+                            ].map(f => (
+                                <div key={f.key}>
+                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">{f.label}</label>
+                                    <input type={f.type} required={f.required} value={currentUser[f.key]} placeholder={f.ph}
+                                        onChange={e => setCurrentUser({ ...currentUser, [f.key]: e.target.value })}
+                                        className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-800 dark:text-white bg-gray-50 dark:bg-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 transition" />
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">Email</label>
-                                    <input 
-                                        type="email" 
-                                        required
-                                        value={currentUser.email}
-                                        onChange={(e) => setCurrentUser({...currentUser, email: e.target.value})}
-                                        className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
-                                        placeholder="email@example.com"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">Username</label>
-                                    <input 
-                                        type="text" 
-                                        value={currentUser.username}
-                                        onChange={(e) => setCurrentUser({...currentUser, username: e.target.value})}
-                                        className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
-                                        placeholder="username (optional)"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">{editMode || currentUser.role === 'guest' ? 'Password (Optional)' : 'Password'}</label>
-                                    <input 
-                                        type="password" 
-                                        required={!editMode && currentUser.role !== 'guest'}
-                                        value={currentUser.password}
-                                        onChange={(e) => setCurrentUser({...currentUser, password: e.target.value})}
-                                        className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
-                                        placeholder={editMode || currentUser.role === 'guest' ? "Leave blank to keep current" : "••••••••"}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">Role</label>
-                                    <select 
-                                        value={currentUser.role}
-                                        onChange={(e) => setCurrentUser({...currentUser, role: e.target.value})}
-                                        className="w-full bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm appearance-none"
-                                    >
-                                        <option value="user">User</option>
-                                        <option value="admin">Admin</option>
-                                    </select>
-                                </div>
+                            ))}
+                            <div>
+                                <Select
+                                    label="Rol"
+                                    value={currentUser.role}
+                                    onChange={v => setCurrentUser({ ...currentUser, role: v })}
+                                    options={[
+                                        { value: 'user', label: 'User' },
+                                        { value: 'admin', label: 'Admin' },
+                                    ]}
+                                />
                             </div>
-                            <div className="mt-8 flex justify-end space-x-3">
-                                <button type="button" onClick={() => setShowModal(false)} className="py-3 px-5 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm text-sm font-bold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-all active:scale-[0.98]">
-                                    Cancel
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={() => setShowModal(false)}
+                                    className="px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    Bekor qilish
                                 </button>
-                                <button type="submit" className="py-3 px-5 rounded-xl shadow-lg shadow-blue-500/30 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-all active:scale-[0.98]">
-                                    {editMode ? 'Save Changes' : 'Create User'}
+                                <button type="submit"
+                                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
+                                    {editMode ? 'Saqlash' : 'Yaratish'}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
+
+            {confirmModal}
         </div>
     );
 };

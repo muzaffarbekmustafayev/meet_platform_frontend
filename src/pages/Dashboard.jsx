@@ -1,51 +1,16 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import API from '../api';
-import Sidebar from '../components/Sidebar';
-import TopHeader from '../components/TopHeader';
+import ThemeToggle from '../components/ThemeToggle';
+import LanguageToggle from '../components/LanguageToggle';
+import Select from '../components/Select';
 import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
-import MeetraLogo from '../MeetraLogo/MeetraLogo';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../components/ConfirmModal';
 import ComingSoonModal from '../components/ComingSoonModal';
 
-// Inline lang+theme controls for non-admin navbar
-const NavbarControls = ({ lang, changeLanguage, theme, toggleTheme }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    return (
-        <div className="flex items-center gap-2">
-            <div className="relative">
-                <button 
-                    onClick={() => setIsOpen(!isOpen)}
-                    onBlur={() => setTimeout(() => setIsOpen(false), 200)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all bg-white/50 dark:bg-gray-900/50 shadow-sm"
-                >
-                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="uppercase tracking-wide">{lang}</span>
-                </button>
-                {isOpen && (
-                    <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                        {['uz', 'ru', 'en'].map(l => (
-                            <button
-                                key={l}
-                                onClick={() => changeLanguage(l)}
-                                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors ${lang === l ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
-                            >
-                                {l === 'uz' ? 'O\'zbekcha' : l === 'ru' ? 'Русский' : 'English'}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
-            <button onClick={toggleTheme} className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-amber-500 dark:hover:text-blue-400 bg-gray-50 hover:bg-amber-50 dark:bg-gray-800/50 dark:hover:bg-blue-900/30 rounded-lg transition-all border border-gray-200 dark:border-gray-700/80 shadow-sm" title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}>
-                {theme === 'dark'
-                    ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-                }
-            </button>
-        </div>
-    );
-};
+const APP_NAME = import.meta.env.VITE_APP_NAME || 'Meetra';
 
 // ─── Join View ────────────────────────────────────────────────────────────────
 const JoinView = ({ t }) => {
@@ -125,9 +90,14 @@ const ScheduleView = ({ t, lang }) => {
                         <div className="flex flex-col sm:grid sm:grid-cols-[140px_1fr] gap-2 sm:gap-4 items-start px-4 sm:px-6 py-4">
                             <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">{lang === 'uz' ? 'Davomiyligi' : lang === 'ru' ? 'Длительность' : 'Duration'}</label>
                             <div className="w-full">
-                                <select value={duration} onChange={e => setDuration(e.target.value)} className={`${inp} appearance-none cursor-pointer`}>
-                                    {['15','30','45','60','90','120'].map(d => <option key={d} value={d}>{d} {lang === 'uz' ? 'daqiqa' : lang === 'ru' ? 'мин' : 'min'}</option>)}
-                                </select>
+                                <Select
+                                    value={duration}
+                                    onChange={setDuration}
+                                    options={['15','30','45','60','90','120'].map(d => ({
+                                        value: d,
+                                        label: `${d} ${lang === 'uz' ? 'daqiqa' : lang === 'ru' ? 'мин' : 'min'}`
+                                    }))}
+                                />
                                 {parseInt(duration) > 40 && (
                                     <div className="mt-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/60 rounded-md">
                                         <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
@@ -158,7 +128,7 @@ const LandingView = ({ t, lang }) => (
     <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
         <div className="max-w-6xl mx-auto px-6 py-16 sm:py-24 flex flex-col items-center text-center">
             <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-6">
-                Welcome to <span className="text-blue-600">Meetra</span> Platform
+                Welcome to <span className="text-blue-600">{APP_NAME}</span> Platform
             </h1>
             <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mb-10 leading-relaxed">
                 {lang === 'uz' ? 'Zamonaviy, tezkor va xavfsiz video uchrashuvlar tizimi. Barcha loyiha a\'zolari va mehmonlar bilan uzluksiz aloqada bo\'ling.' : 
@@ -211,6 +181,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
     const [passwordCopied, setPasswordCopied] = useState(false);
     const [comingSoon, setComingSoon] = useState({ show: false, name: '' });
     const navigate = useNavigate();
+    const toast = useToast();
 
     // Live clock
     React.useEffect(() => {
@@ -218,14 +189,12 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
         return () => clearInterval(id);
     }, []);
 
-    // Generate random password
+    // Generate cryptographically random password
     const generatePassword = () => {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-        let password = '';
-        for (let i = 0; i < 8; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        setRoomPassword(password);
+        const arr = new Uint8Array(10);
+        crypto.getRandomValues(arr);
+        setRoomPassword(Array.from(arr).map(b => chars[b % chars.length]).join(''));
     };
 
     // Get password strength
@@ -238,39 +207,36 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
         if (/\d/.test(roomPassword)) strength++;
         if (/[!@#$%^&*]/.test(roomPassword)) strength++;
         
-        if (strength <= 1) return { level: 1, text: lang === 'uz' ? 'Zaif' : lang === 'ru' ? 'Слабый' : 'Weak', color: 'red' };
-        if (strength <= 2) return { level: 2, text: lang === 'uz' ? 'O\'rtacha' : lang === 'ru' ? 'Средний' : 'Fair', color: 'yellow' };
-        if (strength <= 3) return { level: 3, text: lang === 'uz' ? 'Yaxshi' : lang === 'ru' ? 'Хороший' : 'Good', color: 'blue' };
-        return { level: 4, text: lang === 'uz' ? 'Kuchli' : lang === 'ru' ? 'Сильный' : 'Strong', color: 'green' };
+        if (strength <= 1) return { level: 1, text: t('pw_weak'), color: 'red' };
+        if (strength <= 2) return { level: 2, text: t('pw_fair'), color: 'yellow' };
+        if (strength <= 3) return { level: 3, text: t('pw_good'), color: 'blue' };
+        return { level: 4, text: t('pw_strong'), color: 'green' };
     };
 
     const passwordStrength = getPasswordStrength();
 
     const handleCreateRoom = async () => {
-        // Validation: Private rooms require password
         if (roomType === 'private' && !roomPassword.trim()) {
-            alert(lang === 'uz' ? 'Shaxsiy xonalar uchun parol kerak' : lang === 'ru' ? 'Для приватных комнат требуется пароль' : 'Password is required for private rooms');
+            toast.error(t('pw_required_private'));
             return;
         }
-
-        // Validation: Public rooms should not have password
         if (roomType === 'public' && roomPassword.trim()) {
-            alert(lang === 'uz' ? 'Ommaviy xonalar parol bilan himoyalanmaydi' : lang === 'ru' ? 'Публичные комнаты не должны быть защищены паролем' : 'Public rooms cannot have password protection');
+            toast.error(t('pw_not_allowed_public'));
             return;
         }
-
         setLoading(true);
         try {
-            const { data } = await API.post('/api/meetings', { 
-                title: meetingTitle || `${userInfo.name}'s Meeting`,
+            const { data } = await API.post('/api/meetings', {
+                title: meetingTitle || undefined,
                 roomType,
                 password: roomType === 'private' ? roomPassword : undefined
             });
             navigate(`/room/${data.meetingCode}`);
-        } catch (error) { 
-            alert(error.response?.data?.message || 'Failed to create'); 
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to create');
+        } finally {
+            setLoading(false);
         }
-        finally { setLoading(false); }
     };
 
     const hh = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -622,7 +588,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                             <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-8 backdrop-blur-md shadow-lg border border-white/20">
                                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                             </div>
-                            <h3 className="text-3xl font-black mb-4 tracking-tight leading-tight">Meetra Pro</h3>
+                            <h3 className="text-3xl font-black mb-4 tracking-tight leading-tight">{APP_NAME} Pro</h3>
                             <p className="text-white/80 text-lg font-medium mb-10 leading-relaxed">
                                 {lang === 'uz' ? 'Cheksiz vaqt va yuqori sifat uchun Pro tarifiga o\'ting.' : lang === 'ru' ? 'Перейдите на Pro для неограниченного времени и высокого качества.' : 'Upgrade to Pro for unlimited time and high quality video.'}
                             </p>
@@ -781,92 +747,150 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
     }
 
     return (
-        <div className="flex-1 overflow-y-auto px-4 py-8 md:py-10 bg-white dark:bg-gray-900 relative">
-            {/* Edit Profile Modal */}
+        <div className="flex-1 overflow-y-auto px-4 py-8 md:py-10 bg-gray-50 dark:bg-gray-950 relative">
+            {/* Edit Profile Slide-over */}
             {isEditing && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
-                        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Edit Profile</h2>
-                        <form onSubmit={handleSaveProfile} className="space-y-4">
+                <div className="fixed inset-0 z-50 flex">
+                    <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setIsEditing(false)} />
+                    <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-800 shrink-0">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                                <input type="text" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required />
+                                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                                    {lang === 'uz' ? 'Profilni tahrirlash' : lang === 'ru' ? 'Редактировать профиль' : 'Edit Profile'}
+                                </h2>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {lang === 'uz' ? 'Ma\'lumotlarni yangilang' : lang === 'ru' ? 'Обновите ваши данные' : 'Update your information'}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsEditing(false)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 transition-colors">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={handleSaveProfile} className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                            {/* Avatar preview */}
+                            <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                                <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold shrink-0">
+                                    {(editForm.name || profile?.name || '?')[0]?.toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{editForm.name || profile?.name}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{profile?.email}</p>
+                                </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bio</label>
-                                <textarea value={editForm.bio} onChange={(e) => setEditForm({...editForm, bio: e.target.value})} rows="3" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                    {lang === 'uz' ? 'Ism' : lang === 'ru' ? 'Имя' : 'Name'}
+                                </label>
+                                <input type="text" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                                    className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" required />
                             </div>
-                            
                             <div>
-                                <div className="flex justify-between items-center mb-1">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Social Links (Max 5)</label>
-                                    <button type="button" onClick={addLink} disabled={editForm.links.length >= 5} className="text-xs text-blue-600 dark:text-blue-400 font-medium disabled:opacity-50">
-                                        + Add Link
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Bio</label>
+                                <textarea value={editForm.bio} onChange={(e) => setEditForm({...editForm, bio: e.target.value})} rows="3"
+                                    placeholder={lang === 'uz' ? 'O\'zingiz haqingizda yozing...' : lang === 'ru' ? 'Напишите о себе...' : 'Write something about yourself...'}
+                                    className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all resize-none" />
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        {lang === 'uz' ? 'Ijtimoiy havolalar' : lang === 'ru' ? 'Социальные ссылки' : 'Social Links'} ({editForm.links.length}/5)
+                                    </label>
+                                    <button type="button" onClick={addLink} disabled={editForm.links.length >= 5}
+                                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 disabled:opacity-40 flex items-center gap-1 transition-colors">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"/></svg>
+                                        {lang === 'uz' ? 'Qo\'shish' : lang === 'ru' ? 'Добавить' : 'Add'}
                                     </button>
                                 </div>
                                 <div className="space-y-2">
                                     {editForm.links.map((link, idx) => (
-                                        <div key={idx} className="flex gap-2 items-center">
-                                            <input type="text" placeholder="Title (e.g. GitHub)" value={link.title} onChange={(e) => updateLink(idx, 'title', e.target.value)} className="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required />
-                                            <input type="url" placeholder="URL" value={link.url} onChange={(e) => updateLink(idx, 'url', e.target.value)} className="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required />
-                                            <button type="button" onClick={() => removeLink(idx)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-md">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        <div key={idx} className="flex gap-2 items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                                            <div className="flex-1 flex gap-2">
+                                                <input type="text" placeholder="GitHub" value={link.title} onChange={(e) => updateLink(idx, 'title', e.target.value)}
+                                                    className="w-24 shrink-0 px-2.5 py-1.5 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all" />
+                                                <input type="url" placeholder="https://..." value={link.url} onChange={(e) => updateLink(idx, 'url', e.target.value)}
+                                                    className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all" />
+                                            </div>
+                                            <button type="button" onClick={() => removeLink(idx)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors shrink-0">
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
                                         </div>
                                     ))}
-                                    {editForm.links.length === 0 && <p className="text-xs text-gray-500">No links added.</p>}
+                                    {editForm.links.length === 0 && (
+                                        <p className="text-xs text-gray-400 dark:text-gray-600 italic py-2 text-center">
+                                            {lang === 'uz' ? 'Hali havola qo\'shilmagan' : lang === 'ru' ? 'Ссылки не добавлены' : 'No links added yet'}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
-
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 mt-6">
-                                <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md">Cancel</button>
-                                <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50">
-                                    {saving ? 'Saving...' : 'Save Changes'}
-                                </button>
-                            </div>
                         </form>
+                        <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800 shrink-0 bg-gray-50/50 dark:bg-gray-900">
+                            <button type="button" onClick={() => setIsEditing(false)}
+                                className="flex-1 py-3 text-sm font-semibold text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                {lang === 'uz' ? 'Bekor' : lang === 'ru' ? 'Отмена' : 'Cancel'}
+                            </button>
+                            <button onClick={handleSaveProfile} disabled={saving}
+                                className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 transition-colors shadow-md shadow-blue-500/20">
+                                {saving ? (
+                                    <span className="flex items-center justify-center gap-2">
+                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                        {lang === 'uz' ? 'Saqlanmoqda...' : lang === 'ru' ? 'Сохранение...' : 'Saving...'}
+                                    </span>
+                                ) : (lang === 'uz' ? 'Saqlash' : lang === 'ru' ? 'Сохранить' : 'Save Changes')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
-            <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-8">
+            <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
                 
                 {/* 1. Left Sidebar (User details) */}
-                <div className="w-full md:w-1/3 lg:w-1/4 flex flex-col">
-                    <div className="relative mb-4 shrink-0">
-                        <div className="w-48 h-48 sm:w-56 sm:h-56 mx-auto md:mx-0 rounded-full border border-gray-200 dark:border-gray-700 bg-blue-600 flex items-center justify-center text-7xl font-bold text-white shadow-sm overflow-hidden z-10 relative">
-                            {avatarInitial}
+                <div className="w-full md:w-72 lg:w-64 shrink-0 flex flex-col gap-4">
+                    {/* Avatar Card */}
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 text-center">
+                        <div className="relative inline-block mb-4">
+                            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-4xl font-bold text-white shadow-lg shadow-blue-500/20 ring-4 ring-white dark:ring-gray-800">
+                                {avatarInitial}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-center text-base shadow-sm cursor-pointer hover:scale-110 transition-transform" title="Status">
+                                🎯
+                            </div>
                         </div>
-                        <div className="absolute bottom-4 right-1/2 translate-x-16 md:translate-x-20 w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-center text-xl shadow-sm z-20" title="Set status">
-                            🎯
-                        </div>
-                    </div>
-                    
-                    <div className="text-center md:text-left mb-4">
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight">{profile?.name}</h1>
-                        <p className="text-xl text-gray-500 dark:text-gray-400 font-light mb-4">@{username}</p>
-                        
-                        <p className="text-sm text-gray-800 dark:text-gray-300 mb-5 leading-relaxed">
-                            {profile?.bio || (lang === 'uz' ? 'Zamonaviy video aloqa tizimi ishqibozi. Loyihalarni osonlashtirishga ishtiyoqmand.' : lang === 'ru' ? 'Энтузиаст современных систем видеосвязи. Страстно желаю упрощать проекты.' : 'Enthusiast of modern video communication systems. Passionate about streamlining projects.')}
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight mb-0.5">{profile?.name}</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">@{username}</p>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize ${roleColor}`}>
+                            {profile?.role || 'User'}
+                        </span>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 leading-relaxed text-left">
+                            {profile?.bio || (lang === 'uz' ? 'Zamonaviy video aloqa tizimi ishqibozi.' : lang === 'ru' ? 'Энтузиаст современных систем видеосвязи.' : 'Enthusiast of modern video communication systems.')}
                         </p>
-                        
-                        <button onClick={openEdit} className="w-full py-1.5 px-3 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-semibold text-gray-700 dark:text-gray-200 transition-colors shadow-sm mb-5">
-                            {lang === 'uz' ? 'Profilni tahrirlash' : lang === 'ru' ? 'Редактировать профиль' : 'Edit profile'}
+                        <button onClick={openEdit} className="mt-4 w-full py-2 px-3 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-200 transition-colors flex items-center justify-center gap-2">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            {lang === 'uz' ? 'Profilni tahrirlash' : lang === 'ru' ? 'Редактировать' : 'Edit profile'}
                         </button>
+                    </div>
 
-                        <div className="flex items-center justify-center md:justify-start gap-1 text-sm text-gray-600 dark:text-gray-400 mb-6">
-                            <button onClick={() => setFollowModal('following')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
-                                <span className="font-semibold text-gray-900 dark:text-white">{profile?.following?.length || 0}</span>
-                                <span>{lang === 'uz' ? 'Kuzatilayotgan' : lang === 'ru' ? 'Подписки' : 'Following'}</span>
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 gap-2">
+                        {[
+                            { label: lang === 'uz' ? 'Uchrashuvlar' : lang === 'ru' ? 'Встреч' : 'Meetings', value: totalMeetings },
+                            { label: lang === 'uz' ? 'Kuzatmoqda' : lang === 'ru' ? 'Подписки' : 'Following', value: profile?.following?.length || 0, onClick: () => setFollowModal('following') },
+                            { label: lang === 'uz' ? 'Kuzatuvchi' : lang === 'ru' ? 'Читатели' : 'Followers', value: profile?.followers?.length || 0, onClick: () => setFollowModal('followers') },
+                        ].map((stat, i) => (
+                            <button key={i} onClick={stat.onClick}
+                                className={`bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-3 text-center transition-colors ${stat.onClick ? 'hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 cursor-pointer' : 'cursor-default'}`}>
+                                <p className="text-xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                                <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-0.5 leading-tight">{stat.label}</p>
                             </button>
-                            <span className="mx-1">•</span>
-                            <button onClick={() => setFollowModal('followers')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
-                                <span className="font-semibold text-gray-900 dark:text-white">{profile?.followers?.length || 0}</span>
-                                <span>{lang === 'uz' ? 'Kuzatuvchilar' : lang === 'ru' ? 'Подписчики' : 'Followers'}</span>
-                            </button>
-                        </div>
+                        ))}
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                            {lang === 'uz' ? 'Ma\'lumotlar' : lang === 'ru' ? 'Информация' : 'Info'}
+                        </p>
 
                         {/* User Search Section */}
-                        <div className="mb-8">
+                        <div className="mb-3">
                             <div className="relative">
                                 <input
                                     type="text"
@@ -913,22 +937,13 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
 
                         <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                             <li className="flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                                <a href={`mailto:${profile?.email}`} className="hover:text-blue-600 hover:underline truncate">{profile?.email}</a>
-                            </li>
-                            <li className="flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                <a href="#" className="hover:text-blue-600 hover:underline truncate">zoom.clone/{username}</a>
-                            </li>
-                            <li className="flex items-center gap-2">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border capitalize ${roleColor}`}>
-                                    {profile?.role || 'Guest'}
-                                </span>
+                                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                <a href={`mailto:${profile?.email}`} className="hover:text-blue-600 hover:underline truncate text-xs">{profile?.email}</a>
                             </li>
                             {profile?.links?.map((link, i) => (
                                 <li key={i} className="flex items-center gap-2">
-                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 hover:underline truncate" title={link.title}>{link.title}</a>
+                                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 hover:underline truncate text-xs">{link.title}</a>
                                 </li>
                             ))}
                         </ul>
@@ -936,15 +951,15 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
                 </div>
 
                 {/* 2. Right Main Area */}
-                <div className="w-full md:w-2/3 lg:w-3/4 flex flex-col gap-8">
+                <div className="flex-1 min-w-0 flex flex-col gap-6">
                     
                     {/* Pinned Meetings */}
                     <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                                {lang === 'uz' ? 'Qadalgan xonalar' : lang === 'ru' ? 'Закрепленные комнаты' : 'Pinned Rooms'}
+                        <div className="flex items-center gap-3 mb-4">
+                            <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            <h2 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                                {lang === 'uz' ? 'Qadalgan xonalar' : lang === 'ru' ? 'Закреплённые' : 'Pinned Rooms'}
                             </h2>
-                            <button className="text-sm text-blue-600 hover:underline">Customize your pins</button>
                         </div>
                         {pinnedMeetings.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1124,6 +1139,8 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
 const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
     const [editingId, setEditingId] = useState(null);
     const [editTitle, setEditTitle] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dateFilter, setDateFilter] = useState('');
     const navigate = useNavigate();
 
     const handleEditClick = (e, m) => {
@@ -1140,15 +1157,38 @@ const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
         setEditingId(null);
     };
 
+    const filteredHistory = history.filter((meeting) => {
+        const matchesSearch = [meeting.title, meeting.meetingCode].some((value) =>
+            String(value || '').toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        const createdDate = new Date(meeting.createdAt).toISOString().slice(0, 10);
+        return matchesSearch && (!dateFilter || createdDate === dateFilter);
+    });
+
     return (
         <div className="flex-1 overflow-y-auto px-4 py-8 sm:py-10 bg-gray-50 dark:bg-gray-900/50">
             <div className="w-full max-w-4xl mx-auto">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
                     {lang === 'uz' ? 'Uchrashuvlarim' : lang === 'ru' ? 'Мои встречи' : 'My Meetings'}
                 </h2>
-                {history.length > 0 ? (
+                <div className="mb-6 grid gap-3 md:grid-cols-[1fr_220px]">
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder={lang === 'uz' ? 'Meeting nomi yoki code qidiring' : 'Search by meeting title or code'}
+                        className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                    />
+                    <input
+                        type="date"
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                        className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                    />
+                </div>
+                {filteredHistory.length > 0 ? (
                     <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden divide-y divide-gray-50 dark:divide-gray-700/50">
-                        {history.map(m => (
+                        {filteredHistory.map(m => (
                             <div key={m._id} className="p-5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group cursor-pointer" onClick={() => editingId !== m._id && navigate(`/room/${m.meetingCode}`)}>
                                 <div className="flex items-center gap-4 flex-1">
                                     <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
@@ -1179,6 +1219,12 @@ const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
                                 
                                 {editingId !== m._id && (
                                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-4">
+                                        <button onClick={(e) => { e.stopPropagation(); onUpdate(m._id, m.title, { isPinned: !m.isPinned }); }} className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${m.isPinned ? 'text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 dark:text-gray-300'}`} title="Pin">
+                                            {m.isPinned ? 'Unpin' : 'Pin'}
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); navigate(`/room/${m.meetingCode}`); }} className="px-3 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors" title="Rejoin">
+                                            Rejoin
+                                        </button>
                                         <button onClick={(e) => handleEditClick(e, m)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Tahrirlash">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                         </button>
@@ -1212,9 +1258,14 @@ const Dashboard = () => {
     const location = useLocation();
     const [history, setHistory] = useState([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const navigate = useNavigate();
-    const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+    const { user: userInfo } = useAuth();
     const { t, lang, theme, toggleTheme, changeLanguage } = useContext(ThemeLanguageContext);
+    const toast = useToast();
+    const { confirm, modal: confirmModal } = useConfirm();
+    const { logout } = useAuth();
     const isAdmin = userInfo?.role === 'admin';
 
     let view = 'home';
@@ -1236,21 +1287,30 @@ const Dashboard = () => {
 
     const handleDeleteMeeting = async (e, id) => {
         e.stopPropagation();
-        if (window.confirm(lang === 'uz' ? 'Ushbu uchrashuvni o\'chirmoqchimisiz?' : 'Delete this meeting?')) {
-            try { await API.delete(`/api/meetings/${id}`); setHistory(h => h.filter(m => m._id !== id)); }
-            catch { alert('Failed'); }
+        const ok = await confirm(t('confirm_delete_meeting'));
+        if (!ok) return;
+        try {
+            await API.delete(`/api/meetings/${id}`);
+            setHistory(h => h.filter(m => m._id !== id));
+            toast.success(t('meeting_deleted'));
+        } catch {
+            toast.error(t('action_failed'));
         }
     };
 
-    const handleUpdateMeeting = async (id, newTitle) => {
-        try { 
-            await API.put(`/api/meetings/${id}`, { title: newTitle }); 
-            setHistory(h => h.map(m => m._id === id ? { ...m, title: newTitle } : m)); 
+    const handleUpdateMeeting = async (id, newTitle, extra = {}) => {
+        try {
+            await API.put(`/api/meetings/${id}`, { title: newTitle, ...extra });
+            setHistory(h => h.map(m => m._id === id ? { ...m, title: newTitle, ...extra } : m));
+        } catch {
+            toast.error(t('action_failed'));
         }
-        catch { alert('Failed to update meeting'); }
     };
 
-    const handleLogout = () => { localStorage.removeItem('userInfo'); window.location.reload(); };
+    const handleLogout = () => {
+        logout();
+        navigate('/login', { replace: true });
+    };
 
     // Admin sidebar nav items
     const adminNavItems = [
@@ -1288,108 +1348,128 @@ const Dashboard = () => {
         </>
     );
 
-    // ── ADMIN: sidebar layout ──────────────────────────────────────────────────
-    if (isAdmin) {
-        return (
-            <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans overflow-hidden transition-colors">
-                <Sidebar
-                    title="Meetra" titleInitial="M"
-                    navigationItems={adminNavItems}
-                    userInfo={userInfo} handleLogout={handleLogout}
-                    isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen}
-                    extraContent={recentContent}
-                />
-                <main className="flex-1 overflow-y-auto flex flex-col min-h-0">
-                    <TopHeader
-                        title={view === 'home' ? t('dashboard') : view === 'join' ? t('join_meeting') : view === 'schedule' ? t('schedule') : t('profile')}
-                        isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen}
-                        onNavAction={(id) => { if (['join','schedule','profile'].includes(id)) setView(id); }}
-                    />
-                    {mainContent}
-                </main>
-            </div>
-        );
-    }
-
-    // ── NON-ADMIN: full-width navbar layout ───────────────────────────────────
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    // ── Nav links for authenticated users ────────────────────────────────────
     const navLinks = userInfo ? [
         { id: 'home', label: t('dashboard') },
         { id: 'history', label: lang === 'uz' ? 'Uchrashuvlarim' : lang === 'ru' ? 'Мои встречи' : 'My Meetings' },
-        { id: 'join', label: t('join_meeting') },
         { id: 'schedule', label: t('schedule') },
     ] : [];
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans overflow-hidden transition-colors">
-            {/* Navbar */}
-            <header className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 h-16 flex items-center justify-between px-4 sm:px-6 md:px-10 sticky top-0 z-30 shrink-0 transition-all shadow-sm">
-                {/* Left: Logo */}
-                <div className="flex items-center gap-3">
-                    <MeetraLogo className="w-9 h-9" />
-                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400 tracking-tight hidden sm:block">Meetra</span>
+        <div className="flex flex-col h-screen bg-gray-50 dark:bg-[#0d1117] text-gray-800 dark:text-gray-200 font-sans overflow-hidden transition-colors">
+
+            {/* ── Navbar ───────────────────────────────────────────────────── */}
+            <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200/60 dark:border-gray-800/60 h-14 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shrink-0">
+
+                {/* Left: Logo + Nav */}
+                <div className="flex items-center gap-2 lg:gap-6">
+                    {/* Logo */}
+                    <button onClick={() => setView('home')} className="flex items-center gap-2.5 shrink-0 group">
+                        <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:shadow-blue-600/40 transition-shadow">
+                            <span className="text-white text-xs font-black">{APP_NAME[0]}</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900 dark:text-white hidden sm:block tracking-tight">{APP_NAME}</span>
+                    </button>
+
+                    {/* Separator */}
+                    <div className="w-px h-5 bg-gray-200 dark:bg-gray-700/60 hidden md:block" />
+
+                    {/* Desktop Nav links */}
+                    <nav className="hidden md:flex items-center gap-0.5">
+                        {navLinks.map(link => (
+                            <button key={link.id} onClick={() => setView(link.id)}
+                                className={`px-3.5 py-1.5 text-[13px] font-semibold rounded-lg transition-all duration-200 ${
+                                    view === link.id
+                                        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/60'
+                                }`}>
+                                {link.label}
+                            </button>
+                        ))}
+                    </nav>
                 </div>
 
-                {/* Center: Nav links — desktop only */}
-                <nav className="hidden md:flex items-center gap-2 lg:gap-4">
-                    {navLinks.map(link => (
-                        <button key={link.id} onClick={() => setView(link.id)}
-                            className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-300 ${
-                                view === link.id
-                                    ? 'text-white bg-blue-600 shadow-md shadow-blue-500/30'
-                                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-                            }`}>
-                            {link.label}
+                {/* Right: Quick action + controls + profile */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* Quick Join button */}
+                    {userInfo && (
+                        <button onClick={() => setView('join')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${view === 'join' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25' : 'bg-blue-50 dark:bg-blue-900/25 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200/60 dark:border-blue-800/50'}`}>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                            <span className="hidden sm:inline">{t('join_meeting')}</span>
                         </button>
-                    ))}
-                </nav>
+                    )}
 
-                {/* Right: controls */}
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <NavbarControls lang={lang} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} />
-                    <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
-                    
+                    <div className="w-px h-4 bg-gray-200 dark:bg-gray-700/60 hidden sm:block" />
+
+                    {/* Theme + Language */}
+                    <div className="hidden sm:flex items-center gap-1.5">
+                        <LanguageToggle compact />
+                        <ThemeToggle compact />
+                    </div>
+
+                    {/* Profile dropdown */}
                     {userInfo ? (
-                        <>
-                            <div
-                                onClick={() => setView('profile')}
-                                className="w-8 h-8 bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30 rounded-full flex items-center justify-center text-sm font-bold cursor-pointer transition-all shrink-0"
-                                title="Profile"
-                            >
-                                {userInfo?.name?.[0]?.toUpperCase()}
-                            </div>
-                            <button onClick={handleLogout} className="hidden sm:block text-xs font-semibold text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors ml-1 uppercase tracking-wider">
-                                {t('sign_out')}
+                        <div className="relative group ml-0.5">
+                            <button className="flex items-center gap-2 px-1.5 py-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                                <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-full flex items-center justify-center text-[11px] font-bold shrink-0">
+                                    {userInfo?.name?.[0]?.toUpperCase()}
+                                </div>
+                                <svg className="w-3 h-3 text-gray-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
                             </button>
-                        </>
+                            <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all duration-200 translate-y-1 group-hover:translate-y-0">
+                                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{userInfo?.name}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{userInfo?.email}</p>
+                                </div>
+                                <button onClick={() => setView('profile')} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                    {lang === 'uz' ? 'Profil' : lang === 'ru' ? 'Профиль' : 'Profile'}
+                                </button>
+                                {isAdmin && (
+                                    <button onClick={() => navigate('/admin')} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        Admin Panel
+                                    </button>
+                                )}
+                                {/* Mobile-only toggles */}
+                                <div className="sm:hidden flex items-center justify-between px-4 py-2 border-t border-gray-100 dark:border-gray-800">
+                                    <LanguageToggle compact />
+                                    <ThemeToggle compact />
+                                </div>
+                                <div className="border-t border-gray-100 dark:border-gray-800">
+                                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                                        {t('sign_out')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     ) : (
-                        <div className="hidden sm:flex items-center gap-2 ml-2">
-                            <Link to="/login" className="px-4 py-1.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                        <div className="flex items-center gap-2 ml-1">
+                            <Link to="/login" className="px-3.5 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                                 {lang === 'uz' ? 'Kirish' : lang === 'ru' ? 'Войти' : 'Log in'}
                             </Link>
-                            <Link to="/register" className="px-4 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all shadow-sm">
-                                {lang === 'uz' ? 'Ro\'yxatdan o\'tish' : lang === 'ru' ? 'Регистрация' : 'Register'}
+                            <Link to="/register" className="px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all shadow-sm">
+                                {lang === 'uz' ? "Ro'yxatdan o'tish" : lang === 'ru' ? 'Регистрация' : 'Register'}
                             </Link>
                         </div>
                     )}
 
-                    {/* Hamburger — mobile only */}
-                    <button
-                        onClick={() => setMobileMenuOpen(v => !v)}
-                        className="md:hidden p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                        aria-label="Menu"
-                    >
-                        {mobileMenuOpen
-                            ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                        }
-                    </button>
+                    {/* Mobile hamburger */}
+                    {userInfo && (
+                        <button onClick={() => setMobileMenuOpen(v => !v)} className="md:hidden p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" aria-label="Menu">
+                            {mobileMenuOpen
+                                ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                            }
+                        </button>
+                    )}
                 </div>
             </header>
 
-            {/* Mobile dropdown menu */}
-            {mobileMenuOpen && (
-                <div className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-4 py-2 z-20 shrink-0 shadow-sm">
+            {/* ── Mobile nav dropdown ──────────────────────────────────────── */}
+            {mobileMenuOpen && userInfo && (
+                <div className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2 z-30 shrink-0 shadow-lg">
                     {navLinks.map(link => (
                         <button key={link.id}
                             onClick={() => { setView(link.id); setMobileMenuOpen(false); }}
@@ -1401,28 +1481,18 @@ const Dashboard = () => {
                             {link.label}
                         </button>
                     ))}
-                    <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-2 pb-1">
-                        {userInfo ? (
-                            <button onClick={handleLogout} className="w-full text-left px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors">
-                                {t('sign_out')}
-                            </button>
-                        ) : (
-                            <div className="flex flex-col gap-2 px-1">
-                                <Link to="/login" className="w-full text-center px-3 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                                    {lang === 'uz' ? 'Kirish' : lang === 'ru' ? 'Войти' : 'Log in'}
-                                </Link>
-                                <Link to="/register" className="w-full text-center px-3 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg">
-                                    {lang === 'uz' ? 'Ro\'yxatdan o\'tish' : lang === 'ru' ? 'Регистрация' : 'Register'}
-                                </Link>
-                            </div>
-                        )}
-                    </div>
+                    <button onClick={() => { setView('join'); setMobileMenuOpen(false); }}
+                        className={`w-full text-left px-3 py-2.5 text-sm font-medium rounded-lg mb-0.5 transition-colors ${view === 'join' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                        {t('join_meeting')}
+                    </button>
                 </div>
             )}
 
+            {/* ── Main content ────────────────────────────────────────────── */}
             <main className="flex-1 overflow-y-auto flex flex-col min-h-0">
                 {mainContent}
             </main>
+            {confirmModal}
         </div>
     );
 };

@@ -8,27 +8,39 @@ import ChatPanel from '../components/ChatPanel';
 import RoomBottomControls from '../components/room/RoomBottomControls';
 import RoomSettingsModal from '../components/room/RoomSettingsModal';
 import { WaitingRoom, AccessDenied } from '../components/room/RoomScreens';
+import Select from '../components/Select';
 import {
     Mic, MicOff, Video as VideoIcon, VideoOff, MonitorUp, MonitorOff,
     Circle, StopCircle, Hand, Settings, MessageSquare,
     Users, Copy, Check, ShieldCheck, Clock, X, Lock, LogOut,
-    Monitor, Volume2, MoreVertical, ChevronDown, PhoneOff
+    Monitor, Volume2, MoreVertical, ChevronDown, PhoneOff, Wifi, Pin, LayoutGrid, Presentation
 } from 'lucide-react';
 import LanguageToggle from '../components/LanguageToggle';
 import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../components/ConfirmModal';
 
 
 const RoomPage = () => {
     const { id: roomID } = useParams();
     const navigate = useNavigate();
     const { t, lang } = useContext(ThemeLanguageContext);
+    const { user: authUser } = useAuth();
+    const toast = useToast();
+    const { confirm, modal: confirmModal } = useConfirm();
 
     const userInfo = useMemo(() => {
-        const saved = localStorage.getItem('userInfo');
-        if (saved) return JSON.parse(saved);
-        const guestId = 'guest-' + Math.random().toString(36).substr(2, 9);
-        return { name: 'Guest', _id: guestId };
-    }, []);
+        if (authUser) return authUser;
+        // sessionStorage: tab yopilsa tozalanadi, reload da saqlanadi → bir marta ruhsat ishlaydi
+        const key = `guest-id-${roomID}`;
+        let guestId = sessionStorage.getItem(key);
+        if (!guestId) {
+            guestId = `guest-${crypto.randomUUID()}`;
+            sessionStorage.setItem(key, guestId);
+        }
+        return { name: 'Guest', _id: guestId, role: 'guest' };
+    }, [authUser, roomID]);
 
     const [meeting, setMeeting] = useState(null);
     const [peers, setPeers] = useState([]);
@@ -63,11 +75,20 @@ const RoomPage = () => {
     // Role system
     const [myRole, setMyRole] = useState(null); // 'host'|'cohost'|'participant'|'guest'
     const [waitingRoomUsers, setWaitingRoomUsers] = useState([]); // For host/cohost
+    const waitingRoomUsersRef = useRef([]);
     const [isInWaitingRoom, setIsInWaitingRoom] = useState(false);
     const [waitingRoomDenied, setWaitingRoomDenied] = useState(false);
     const [passwordRequired, setPasswordRequired] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
     const [accessDenied, setAccessDenied] = useState(false);
+    const [waitingBadge, setWaitingBadge] = useState(0);
+    const [waitingToasts, setWaitingToasts] = useState([]);
+    const [meetingElapsed, setMeetingElapsed] = useState('00:00:00');
+    const [networkInfo, setNetworkInfo] = useState({ label: 'Stable', ping: 32, tone: 'text-emerald-500' });
+    const [viewMode, setViewMode] = useState('speaker');
+    const [gridSize, setGridSize] = useState('auto');
+    const [pinnedSocketId, setPinnedSocketId] = useState(null);
+    const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
 
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
@@ -84,10 +105,48 @@ const RoomPage = () => {
     const socketRef = useRef(null);
     // Ref mirror of isSharingScreen to avoid stale closure in socket event handlers
     const isSharingScreenRef = useRef(false);
+    const holdToTalkRef = useRef(false);
+    const waitingToastRef = useRef([]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
+
+    const formatDuration = useCallback((ms) => {
+        const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    }, []);
+
+    const playNotificationSound = useCallback(() => {
+        try {
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextCtor) return;
+            const ctx = new AudioContextCtor();
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 880;
+            gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1);
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            oscillator.start();
+            oscillator.stop(ctx.currentTime + 1);
+            oscillator.onended = () => ctx.close().catch(() => {});
+        } catch (_) {}
+    }, []);
+
+    const showBrowserNotification = useCallback((name) => {
+        if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+        new Notification('Meetra waiting room', {
+            body: `${name || 'Foydalanuvchi'} qo'shilishni so'rayapti`,
+            icon: '/vite.svg'
+        });
+    }, []);
 
     useEffect(() => {
         scrollToBottom();
@@ -95,8 +154,49 @@ const RoomPage = () => {
     }, [messages, showChat]);
 
     useEffect(() => {
+        if (!meeting?.startTime) return;
+        const startAt = new Date(meeting.startTime).getTime();
+        const tick = () => setMeetingElapsed(formatDuration(Date.now() - startAt));
+        tick();
+        const intervalId = setInterval(tick, 1000);
+        return () => clearInterval(intervalId);
+    }, [meeting?.startTime, formatDuration]);
+
+    useEffect(() => {
+        const updateNetwork = () => {
+            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            const rtt = typeof connection?.rtt === 'number' ? connection.rtt : 32;
+            const effectiveType = connection?.effectiveType;
+            if (rtt < 80 && effectiveType !== '2g') setNetworkInfo({ label: 'Excellent', ping: rtt, tone: 'text-emerald-500' });
+            else if (rtt < 160) setNetworkInfo({ label: 'Good', ping: rtt, tone: 'text-blue-500' });
+            else if (rtt < 260) setNetworkInfo({ label: 'Fair', ping: rtt, tone: 'text-amber-500' });
+            else setNetworkInfo({ label: 'Weak', ping: rtt, tone: 'text-red-500' });
+        };
+        updateNetwork();
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        connection?.addEventListener?.('change', updateNetwork);
+        return () => connection?.removeEventListener?.('change', updateNetwork);
+    }, []);
+
+    useEffect(() => {
+        if ((myRole === 'host' || myRole === 'cohost') && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+        }
+    }, [myRole]);
+
+    useEffect(() => {
+        if (!waitingToasts.length) return;
+        const timers = waitingToasts.map((toastItem) => setTimeout(() => {
+            setWaitingToasts((prev) => prev.filter((item) => item.socketId !== toastItem.socketId));
+        }, 30000));
+        return () => timers.forEach(clearTimeout);
+    }, [waitingToasts]);
+
+    useEffect(() => {
         // Create socket on mount — avoid module-level singleton
-        const socket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:5005');
+        const socket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:5005', {
+            auth: { token: userInfo?.token || null }
+        });
         socketRef.current = socket;
 
         // Clear old state before joining new room
@@ -120,7 +220,7 @@ const RoomPage = () => {
                 } else if (error.response?.status === 403) {
                     setAccessDenied(true);
                 } else {
-                    alert('Meeting not found');
+                    toast.error(t('meeting_not_found'));
                     navigate('/');
                 }
             }
@@ -171,7 +271,7 @@ const RoomPage = () => {
             if (approved) {
                 setIsShareApproved(true);
             } else {
-                alert(`Host denied your request to share ${type}.`);
+                toast.warning(t('host_denied_share'));
             }
         });
 
@@ -179,7 +279,7 @@ const RoomPage = () => {
         socket.on('force-stop-share', () => {
             if (isSharingScreenRef.current) {
                 stopScreenShareFn(screenStreamRef, audioContextRef, audioDestinationRef, peersRef, streamRef, socket, roomID, setActiveSharingUser, setIsSharingScreen, setIsShareApproved, setIsWaitingForPermission, isSharingScreenRef);
-                alert('Host has stopped your screen sharing.');
+                toast.warning(t('host_stopped_share'));
             }
         });
 
@@ -191,9 +291,9 @@ const RoomPage = () => {
             setPeers(peers);
         });
 
-        socket.on('kicked', () => { alert('You have been removed from the meeting.'); navigate('/'); });
-        socket.on('blocked', () => { alert('You have been permanently blocked from this meeting.'); navigate('/'); });
-        socket.on('error-message', (msg) => { alert(msg); navigate('/'); });
+        socket.on('kicked', () => { toast.error(t('kicked_msg')); navigate('/'); });
+        socket.on('blocked', () => { toast.error(t('blocked_msg')); navigate('/'); });
+        socket.on('error-message', (msg) => { toast.error(msg); navigate('/'); });
 
         socket.on('turn-updated', (data) => setCurrentTurnUserId(data.userId));
         socket.on('screen-sharing-started', (data) => setActiveSharingUser(data));
@@ -218,7 +318,21 @@ const RoomPage = () => {
         });
 
         socket.on('waiting-room-update', (list) => {
-            setWaitingRoomUsers(list || []);
+            const incoming = list || [];
+            const prev = waitingRoomUsersRef.current;
+            // Yangi odam kelganida notification ko'rsat
+            if (incoming.length > prev.length) {
+                const newUser = incoming.find(u => !prev.find(p => p.socketId === u.socketId));
+                if (newUser) {
+                    toast.info(`✋ ${newUser.userName || 'Foydalanuvchi'} kirishni so'ramoqda`);
+                    // Browser notification (agar ruxsat berilgan bo'lsa)
+                    if (Notification.permission === 'granted') {
+                        new Notification('Meetra', { body: `${newUser.userName} kirishni so'ramoqda`, icon: '/vite.svg' });
+                    }
+                }
+            }
+            waitingRoomUsersRef.current = incoming;
+            setWaitingRoomUsers(incoming);
         });
 
         socket.on('room-muted-all', () => {
@@ -230,7 +344,7 @@ const RoomPage = () => {
         });
 
         socket.on('meeting-ended', () => {
-            alert('Host has ended the meeting for everyone.');
+            toast.info(t('meeting_ended_msg'));
             navigate('/');
         });
 
@@ -239,6 +353,7 @@ const RoomPage = () => {
             // To'liq ro'yxat kelganda eskisini tozalab tashlash (dublikat oldini oladi)
             peersRef.current.forEach(p => p.peer && p.peer.destroy());
             peersRef.current = [];
+            setRemoteStreams({});
             
             users.forEach((u) => {
                 const peer = createPeer(u.socketId, socket.id, streamRef.current, userInfo._id, socket);
@@ -246,6 +361,10 @@ const RoomPage = () => {
                 newPeers.push({ peerID: u.socketId, userId: u.userId, peer });
             });
             setPeers(newPeers);
+        });
+
+        socket.io.on('reconnect', () => {
+            socket.emit('reconnect-room', roomID, userInfo._id, userInfo.name, userInfo.role === 'guest' || userInfo._id?.startsWith('guest-'));
         });
 
         socket.on('user-joined', (payload) => {
@@ -350,6 +469,22 @@ const RoomPage = () => {
             setTimeout(() => setToastMessage(null), 5000);
         }
     }, [activeSharingUser, userInfo._id]);
+
+    useEffect(() => {
+        setWaitingBadge(waitingRoomUsers.length);
+    }, [waitingRoomUsers.length]);
+
+    useEffect(() => {
+        if (!(myRole === 'host' || myRole === 'cohost')) return;
+        const previous = waitingToastRef.current || [];
+        const newUsers = waitingRoomUsers.filter((user) => !previous.find((prevUser) => prevUser.socketId === user.socketId));
+        waitingToastRef.current = waitingRoomUsers;
+        if (newUsers.length === 0) return;
+        newUsers.forEach((newUser) => {
+            playNotificationSound();
+            setWaitingToasts((current) => current.find((item) => item.socketId === newUser.socketId) ? current : [...current, newUser]);
+        });
+    }, [myRole, playNotificationSound, waitingRoomUsers]);
 
     // FIX: socket passed as parameter (not module-level variable)
     function createPeer(userToSignal, callerID, stream, callerUserId, socket) {
@@ -608,7 +743,7 @@ const RoomPage = () => {
     };
 
     const startRecording = async () => {
-        if (!canRecord) return alert('Only the meeting host can record the meeting.');
+        if (!canRecord) { toast.warning(t('record_host_only')); return; }
         try {
             const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
             recordedChunksRef.current = [];
@@ -654,24 +789,23 @@ const RoomPage = () => {
         setIsRecording(false);
     };
 
-    const checkGuestAction = () => {
+    const checkGuestAction = async () => {
         if (myRole === 'guest') {
-            if (window.confirm('Guests cannot perform this action. Would you like to log in or register?')) {
-                localStorage.removeItem('userInfo');
+            const ok = await confirm(t('confirm_guest_login'));
+            if (ok) {
                 navigate('/login');
-                window.location.reload();
             }
             return true;
         }
         return false;
     };
 
-    const handleFileUpload = (e) => {
-        if (checkGuestAction()) return;
+    const handleFileUpload = async (e) => {
+        if (await checkGuestAction()) return;
         const file = e.target.files[0];
         if (!file) return;
 
-        const confirmSend = window.confirm(`Do you want to send the file: "${file.name}"?`);
+        const confirmSend = await confirm(`${t('confirm_send_file')} "${file.name}"`);
         if (!confirmSend) {
             e.target.value = '';
             return;
@@ -688,10 +822,10 @@ const RoomPage = () => {
         reader.readAsDataURL(file);
     };
 
-    const sendMessage = (e) => {
+    const sendMessage = async (e) => {
         e.preventDefault();
-        if (checkGuestAction()) return;
-        if (!canChat) return alert('Chat is disabled for this room.');
+        if (await checkGuestAction()) return;
+        if (!canChat) { toast.warning(t('chat_disabled')); return; }
         
         if (editingMessageId) {
             if (newMessage.trim()) {
@@ -708,10 +842,9 @@ const RoomPage = () => {
         }
     };
 
-    const deleteChatMessage = (msgId) => {
-        if (window.confirm("Are you sure you want to delete this message?")) {
-            socketRef.current?.emit('delete-chat-message', { roomId: roomID, messageId: msgId, userId: userInfo._id });
-        }
+    const deleteChatMessage = async (msgId) => {
+        const ok = await confirm(t('confirm_delete_msg'));
+        if (ok) socketRef.current?.emit('delete-chat-message', { roomId: roomID, messageId: msgId, userId: userInfo._id });
     };
     
     const startEditingMessage = (msgId, text) => {
@@ -720,16 +853,14 @@ const RoomPage = () => {
         if (!showChat) setShowChat(true);
     };
 
-    const kickUser = (socketId) => {
-        if (window.confirm('Are you sure you want to kick this user?')) {
-            socketRef.current?.emit('kick-user', { roomId: roomID, targetSocketId: socketId });
-        }
+    const kickUser = async (socketId) => {
+        const ok = await confirm(t('confirm_kick'));
+        if (ok) socketRef.current?.emit('kick-user', { roomId: roomID, targetSocketId: socketId });
     };
 
-    const blockUser = (userId, socketId) => {
-        if (window.confirm('Are you sure you want to BLOCK this user? They will not be able to rejoin.')) {
-            socketRef.current?.emit('block-user', { roomId: roomID, targetUserId: userId, targetSocketId: socketId });
-        }
+    const blockUser = async (userId, socketId) => {
+        const ok = await confirm(t('confirm_block'));
+        if (ok) socketRef.current?.emit('block-user', { roomId: roomID, targetUserId: userId, targetSocketId: socketId });
     };
 
     const giveTurn = (targetUserId) => {
@@ -758,10 +889,12 @@ const RoomPage = () => {
 
     const admitUser = (targetSocketId) => {
         socketRef.current?.emit('admit-user', { roomId: roomID, targetSocketId });
+        setWaitingToasts((prev) => prev.filter((item) => item.socketId !== targetSocketId));
     };
 
     const denyUser = (targetSocketId) => {
         socketRef.current?.emit('deny-user', { roomId: roomID, targetSocketId });
+        setWaitingToasts((prev) => prev.filter((item) => item.socketId !== targetSocketId));
     };
 
     const promoteCoHost = async (targetUserId, targetSocketId) => {
@@ -769,7 +902,7 @@ const RoomPage = () => {
             await API.post(`/api/meetings/${meeting._id}/cohost`, { userId: targetUserId });
             socketRef.current?.emit('promote-cohost', { roomId: roomID, targetUserId, targetSocketId });
         } catch (error) {
-            alert('Failed to promote user');
+            toast.error('Failed to promote user');
         }
     };
 
@@ -778,18 +911,39 @@ const RoomPage = () => {
             await API.delete(`/api/meetings/${meeting._id}/cohost`, { data: { userId: targetUserId } });
             socketRef.current?.emit('demote-cohost', { roomId: roomID, targetUserId, targetSocketId });
         } catch (error) {
-            alert('Failed to demote user');
+            toast.error('Failed to demote user');
         }
     };
 
     const muteAll = () => { if (canModerate) socketRef.current?.emit('mute-all', { roomId: roomID }); };
-    const endMeetingForAll = () => {
-        if (window.confirm('Are you sure you want to end the meeting for everyone?')) socketRef.current?.emit('end-meeting', { roomId: roomID });
+    const endMeetingForAll = async () => {
+        const ok = await confirm(t('confirm_end_meeting'));
+        if (ok) socketRef.current?.emit('end-meeting', { roomId: roomID });
     };
     const leaveRoom = () => {
         socketRef.current?.emit('leave-room');
         socketRef.current?.disconnect();
         navigate('/');
+    };
+
+    const handleHoldToTalkStart = () => {
+        if (myRole === 'guest' || !isMuted || holdToTalkRef.current) return;
+        const audioTrack = streamRef.current?.getAudioTracks?.()[0];
+        if (!audioTrack) return;
+        holdToTalkRef.current = true;
+        audioTrack.enabled = true;
+        setIsMuted(false);
+        socketRef.current?.emit('update-media-status', { roomId: roomID, micStatus: true });
+    };
+
+    const handleHoldToTalkEnd = () => {
+        if (!holdToTalkRef.current) return;
+        const audioTrack = streamRef.current?.getAudioTracks?.()[0];
+        holdToTalkRef.current = false;
+        if (!audioTrack) return;
+        audioTrack.enabled = false;
+        setIsMuted(true);
+        socketRef.current?.emit('update-media-status', { roomId: roomID, micStatus: false });
     };
 
     const getStageUser = () => {
@@ -822,7 +976,28 @@ const RoomPage = () => {
         return null;
     };
 
-    const stageUser = getStageUser();
+    const pinnedUser = pinnedSocketId ? roomUsers.find((user) => user.socketId === pinnedSocketId) : null;
+    const stageUser = pinnedUser ? {
+        socketId: pinnedUser.socketId,
+        userId: pinnedUser.userId,
+        userName: pinnedUser.userName,
+        role: pinnedUser.role,
+        videoStatus: pinnedUser.videoStatus
+    } : getStageUser();
+    const totalParticipantCount = roomUsers.length || peers.length + 1;
+    const autoGridClass = totalParticipantCount <= 2
+        ? 'grid-cols-1 sm:grid-cols-2'
+        : totalParticipantCount <= 4
+            ? 'grid-cols-2'
+            : totalParticipantCount <= 9
+                ? 'grid-cols-2 sm:grid-cols-3'
+                : 'grid-cols-2 sm:grid-cols-4';
+    const gridClassMap = {
+        auto: autoGridClass,
+        '1x1': 'grid-cols-1',
+        '2x2': 'grid-cols-2',
+        '3x3': 'grid-cols-2 sm:grid-cols-3'
+    };
 
     if (isInWaitingRoom) return <WaitingRoom />;
     if (waitingRoomDenied) return <AccessDenied />;
@@ -859,7 +1034,7 @@ const RoomPage = () => {
                                     } else if (error.response?.status === 403) {
                                         setAccessDenied(true);
                                     } else {
-                                        alert('Meeting not found');
+                                        toast.error(t('meeting_not_found'));
                                         navigate('/');
                                     }
                                 }
@@ -896,6 +1071,25 @@ const RoomPage = () => {
 
     return (
         <div className="flex flex-col h-screen bg-gray-100 dark:bg-[#0c0e14] text-gray-900 dark:text-white font-sans overflow-hidden transition-colors">
+            <div className="fixed top-20 right-4 z-[70] flex flex-col gap-3">
+                {waitingToasts.map((waiter) => (
+                    <div key={waiter.socketId} className="w-[320px] rounded-2xl border border-amber-200 dark:border-amber-500/20 bg-white/95 dark:bg-[#171a22]/95 shadow-2xl p-4 backdrop-blur-xl">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-sm font-bold text-white">
+                                {(waiter.userName || '?').slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{waiter.userName}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Waiting roomga qo'shilishni so'rayapti</p>
+                            </div>
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                            <button onClick={() => admitUser(waiter.socketId)} className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Qabul qilish</button>
+                            <button onClick={() => denyUser(waiter.socketId)} className="flex-1 rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">Rad etish</button>
+                        </div>
+                    </div>
+                ))}
+            </div>
             {toastMessage && (
                 <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
                     <div className="bg-white dark:bg-[#1e222d] border border-gray-200 dark:border-white/10 text-gray-800 dark:text-gray-100 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-sm">
@@ -913,6 +1107,14 @@ const RoomPage = () => {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Jonli seans</span>
                     </div>
                     <h1 className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight truncate">{meeting?.title || 'Xona tayyorlanmoqda...'}</h1>
+                    <div className="hidden md:flex items-center gap-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-1.5">
+                        <Clock size={13} className="text-blue-500" />
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{meetingElapsed}</span>
+                    </div>
+                    <div className="hidden md:flex items-center gap-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-1.5">
+                        <Users size={13} className="text-blue-500" />
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{totalParticipantCount}</span>
+                    </div>
                     {myRole && (
                         <div className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border ${myRole === 'host' ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-500/15 dark:border-blue-500/40 dark:text-blue-400' :
                                 myRole === 'cohost' ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/40 dark:text-emerald-400' :
@@ -929,6 +1131,13 @@ const RoomPage = () => {
                         <div className="flex items-center gap-1">
                             <ShieldCheck size={12} className="text-emerald-500" />
                             <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-500">Shifrlangan</span>
+                        </div>
+                    </div>
+                    <div className="hidden md:flex flex-col items-end">
+                        <span className="text-[9px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider">Network</span>
+                        <div className={`flex items-center gap-1 ${networkInfo.tone}`}>
+                            <Wifi size={12} />
+                            <span className="text-[10px] font-semibold">{networkInfo.label} · {networkInfo.ping}ms</span>
                         </div>
                     </div>
                     <div className="relative group">
@@ -974,6 +1183,14 @@ const RoomPage = () => {
                     <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); }} className="lg:hidden p-2 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all">
                         <MoreVertical size={18} />
                     </button>
+                    <div className="hidden md:flex items-center gap-1 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 p-1">
+                        <button onClick={() => setViewMode('speaker')} className={`rounded-lg px-2.5 py-1.5 ${viewMode === 'speaker' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300'}`}>
+                            <Presentation size={14} />
+                        </button>
+                        <button onClick={() => setViewMode('grid')} className={`rounded-lg px-2.5 py-1.5 ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300'}`}>
+                            <LayoutGrid size={14} />
+                        </button>
+                    </div>
                     <LanguageToggle compact />
                 </div>
             </header>
@@ -981,7 +1198,7 @@ const RoomPage = () => {
             {/* Main Area */}
             <div className="flex-1 flex overflow-hidden relative">
                 <div className="flex-1 flex flex-col p-4 relative z-10">
-                    {stageUser ? (
+                    {stageUser && viewMode === 'speaker' ? (
                     <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden animate-in fade-in duration-500">
                         {/* Primary Stage: Remote stream (Host or screen sharer) */}
                         <div className="flex-[4] relative bg-[#15181e] rounded-2xl overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center">
@@ -1063,19 +1280,20 @@ const RoomPage = () => {
                     ) : (
                         <div className="flex-1 p-2 md:p-4 overflow-y-auto custom-scrollbar flex flex-col">
                             {/* Grid View — Adaptive for mobile/desktop */}
-                            <div className={`grid gap-2 sm:gap-3 w-full my-auto ${
-                                peers.length === 0
-                                    ? 'grid-cols-1 max-w-3xl mx-auto'
-                                    : peers.length === 1
-                                    ? 'grid-cols-1 sm:grid-cols-2 max-w-5xl mx-auto'
-                                    : peers.length <= 3
-                                    ? 'grid-cols-1 sm:grid-cols-2 max-w-5xl mx-auto'
-                                    : peers.length <= 8
-                                    ? 'grid-cols-2 sm:grid-cols-3 max-w-6xl mx-auto'
-                                    : peers.length <= 15
-                                    ? 'grid-cols-2 sm:grid-cols-4 max-w-7xl mx-auto'
-                                    : 'grid-cols-2 sm:grid-cols-auto-fit-min-200' 
-                            } animate-in fade-in zoom-in-95 duration-500 pb-20 sm:pb-10`}>
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-1">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                    <LayoutGrid size={14} />
+                                    <span>Grid view</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {['auto', '1x1', '2x2', '3x3'].map((size) => (
+                                        <button key={size} onClick={() => setGridSize(size)} className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${gridSize === size ? 'bg-blue-600 text-white' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}>
+                                            {size}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className={`grid gap-2 sm:gap-3 w-full my-auto max-w-7xl mx-auto ${gridClassMap[gridSize] || gridClassMap.auto} animate-in fade-in zoom-in-95 duration-500 pb-20 sm:pb-10`}>
 
                                 {/* Local user tile */}
                                 <div className={`relative bg-[#0b0d11] rounded-2xl overflow-hidden shadow-xl border transition-all duration-500
@@ -1190,7 +1408,10 @@ const RoomPage = () => {
                                     />
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-2.5 pb-6 pr-1 custom-scrollbar">
-                                    {roomUsers.filter(u => u.userName.toLowerCase().includes(searchQuery.toLowerCase())).map((user, idx) => (
+                                    {[...roomUsers]
+                                        .sort((a, b) => Number(handRaisedUsers.includes(b.userId)) - Number(handRaisedUsers.includes(a.userId)))
+                                        .filter(u => u.userName.toLowerCase().includes(searchQuery.toLowerCase()))
+                                        .map((user, idx) => (
                                         <div key={idx} className={`group flex items-center p-3 rounded-2xl border transition-all duration-300 ${user.userId === currentTurnUserId ? 'bg-blue-500/10 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]' : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10'}`}>
                                             <div className="w-9 h-9 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center text-[11px] font-black text-blue-400 border border-white/10 shadow-lg mr-3 shrink-0">
                                                 {user.userName.charAt(0).toUpperCase()}
@@ -1210,7 +1431,10 @@ const RoomPage = () => {
                                                 </div>
                                             </div>
                                             <div className="flex items-center shrink-0">
-                                                <div className={`w-1.5 h-1.5 rounded-full mr-2 shrink-0 ${user.micStatus ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500/40'}`}></div>
+                                                <div className="mr-2 flex items-center gap-1.5">
+                                                    {user.micStatus ? <Mic size={12} className="text-emerald-400" /> : <MicOff size={12} className="text-red-400" />}
+                                                    {user.videoStatus ? <VideoIcon size={12} className="text-emerald-400" /> : <VideoOff size={12} className="text-red-400" />}
+                                                </div>
                                                 {canModerate && String(user.userId) !== String(userInfo._id) && (
                                                     <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button onClick={() => giveTurn(user.userId)} title={currentTurnUserId === user.userId ? 'Remove Spotlight' : 'Spotlight'} className={`p-1.5 rounded-lg transition-all ${currentTurnUserId === user.userId ? 'bg-blue-500/20 text-blue-400' : 'hover:bg-white/10 text-gray-500 hover:text-white'}`}>
@@ -1262,109 +1486,40 @@ const RoomPage = () => {
                 )}
             </div>
             {/* Bottom Controls */}
-            <div className="h-auto min-h-[4.5rem] md:h-20 bg-white dark:bg-[#1a1d26] border-t border-gray-200 dark:border-white/8 flex flex-wrap md:flex-nowrap items-center justify-between px-3 md:px-8 py-2 md:py-0 z-50 gap-y-2 transition-colors">
-
-                {/* Left: Meeting ID */}
-                <div className="hidden md:flex items-center gap-3 cursor-pointer group px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                    onClick={() => { navigator.clipboard.writeText(roomID); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                    <div className="w-8 h-8 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg flex items-center justify-center shrink-0">
-                        {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} className="text-gray-400" />}
-                    </div>
-                    <div>
-                        <span className="block text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-bold">Meeting ID</span>
-                        <span className={`text-sm font-mono font-bold tracking-wider transition-colors ${copied ? 'text-emerald-500' : 'text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white'}`}>
-                            {copied ? 'Nusxalandi!' : roomID}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Center Controls */}
-                <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-3 flex-1 md:flex-none mx-auto">
-                    {myRole !== 'guest' && (
-                        <>
-                            <button onClick={toggleMute}
-                                className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${isMuted ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
-                                {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
-                                <span className="text-[9px] font-semibold">{isMuted ? 'Unmute' : 'Mute'}</span>
-                            </button>
-
-                            <button onClick={toggleVideo}
-                                className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${isVideoOff ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
-                                {isVideoOff ? <VideoOff size={18} /> : <VideoIcon size={18} />}
-                                <span className="text-[9px] font-semibold">{isVideoOff ? 'Video' : 'Video'}</span>
-                            </button>
-
-                            <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden sm:block" />
-
-                            <div className="relative hidden sm:block">
-                                <button onClick={() => isSharingScreen ? stopScreenShare() : setShowShareMenu(!showShareMenu)}
-                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${isSharingScreen ? 'bg-blue-50 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
-                                    {isSharingScreen ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
-                                    <span className="text-[9px] font-semibold">{isSharingScreen ? "To'xtat" : 'Ekran'}</span>
-                                </button>
-                                {showShareMenu && !isSharingScreen && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-48 bg-white dark:bg-[#1e222d] border border-gray-200 dark:border-white/10 rounded-2xl p-2 shadow-xl z-50">
-                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-2 pt-1 pb-2">Nima ulashish</p>
-                                        {[{label:'Faqat ekran', Icon: Monitor, type:'screen'},{label:'Faqat audio', Icon: Volume2, type:'audio'},{label:'Ekran + Audio', Icon: MonitorUp, type:'both'}].map(({label, Icon, type}) => (
-                                            <button key={type} onClick={() => { toggleScreenShare(type); setShowShareMenu(false); }}
-                                                className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl flex items-center gap-2.5">
-                                                <Icon size={13} className="text-blue-500 shrink-0" />{label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {canRecord && (
-                                <button onClick={isRecording ? stopRecording : startRecording}
-                                    className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[52px] hidden sm:flex ${isRecording ? 'bg-red-50 dark:bg-red-600/20 text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white'}`}>
-                                    <div className="relative">
-                                        {isRecording ? <StopCircle size={18} className="animate-pulse" /> : <Circle size={18} />}
-                                        {isRecording && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
-                                    </div>
-                                    <span className={`text-[9px] font-semibold ${isRecording ? 'text-red-500 dark:text-red-400' : ''}`}>{isRecording ? 'Stop' : 'Yozish'}</span>
-                                </button>
-                            )}
-
-                            <button onClick={raiseHand}
-                                className="flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/8 hover:text-gray-900 dark:hover:text-white transition-all duration-200 min-w-[52px] hidden sm:flex">
-                                <Hand size={18} />
-                                <span className="text-[9px] font-semibold">Qo'l</span>
-                            </button>
-                        </>
-                    )}
-                </div>
-
-                {/* Right Controls */}
-                <div className="flex items-center gap-1 sm:gap-2">
-                    <button onClick={() => setShowSettings(!showSettings)}
-                        className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] hidden sm:flex ${showSettings ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}>
-                        <Settings size={18} />
-                        <span className="text-[9px] font-semibold">Sozlama</span>
-                    </button>
-
-                    <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); }}
-                        className={`relative flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] ${showChat ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}>
-                        <MessageSquare size={18} />
-                        {unreadMessages > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-[8px] font-bold rounded-full flex items-center justify-center text-white">{unreadMessages}</span>}
-                        <span className="text-[9px] font-semibold">Chat</span>
-                    </button>
-
-                    <button onClick={() => { setShowParticipants(!showParticipants); setShowChat(false); }}
-                        className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[44px] ${showParticipants ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8'}`}>
-                        <Users size={18} />
-                        <span className="text-[9px] font-semibold">Odamlar {roomUsers.length > 0 && `(${roomUsers.length})`}</span>
-                    </button>
-
-                    <div className="w-px h-8 bg-gray-200 dark:bg-white/10 hidden sm:block mx-1" />
-
-                    <button onClick={leaveRoom}
-                        className="flex flex-col items-center gap-1 px-3 sm:px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors shadow-md">
-                        <LogOut size={18} />
-                        <span className="text-[9px] font-semibold">Chiqish</span>
-                    </button>
-                </div>
-            </div>
+            <RoomBottomControls
+                roomID={roomID}
+                copied={copied}
+                setCopied={setCopied}
+                myRole={myRole}
+                isMuted={isMuted}
+                toggleMute={toggleMute}
+                isVideoOff={isVideoOff}
+                toggleVideo={toggleVideo}
+                isSharingScreen={isSharingScreen}
+                stopScreenShare={stopScreenShare}
+                toggleScreenShare={toggleScreenShare}
+                showShareMenu={showShareMenu}
+                setShowShareMenu={setShowShareMenu}
+                canRecord={canRecord}
+                isRecording={isRecording}
+                startRecording={startRecording}
+                stopRecording={stopRecording}
+                raiseHand={raiseHand}
+                showSettings={showSettings}
+                setShowSettings={setShowSettings}
+                showChat={showChat}
+                setShowChat={setShowChat}
+                showParticipants={showParticipants}
+                setShowParticipants={setShowParticipants}
+                unreadMessages={unreadMessages}
+                waitingBadge={waitingBadge}
+                roomUsers={roomUsers}
+                leaveRoom={leaveRoom}
+                onHoldToTalkStart={handleHoldToTalkStart}
+                onHoldToTalkEnd={handleHoldToTalkEnd}
+                mobileMenuOpen={mobileToolsOpen}
+                setMobileMenuOpen={setMobileToolsOpen}
+            />
 
             {/* Settings Modal */}
             {showSettings && (
@@ -1378,22 +1533,22 @@ const RoomPage = () => {
                         <p className="text-gray-500 dark:text-gray-400 text-xs font-medium mb-8">Kamera va mikrofonni sozlang</p>
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Kamera</label>
-                                <select value={selectedVideoDevice} onChange={(e) => switchCamera(e.target.value)}
-                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 dark:text-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none cursor-pointer">
-                                    {videoDevices.map(device => (
-                                        <option key={device.deviceId} value={device.deviceId}>{device.label || `Kamera ${device.deviceId.slice(0, 5)}`}</option>
-                                    ))}
-                                </select>
+                                <Select
+                                    label="Kamera"
+                                    value={selectedVideoDevice}
+                                    onChange={switchCamera}
+                                    options={videoDevices.map(d => ({ value: d.deviceId, label: d.label || `Kamera ${d.deviceId.slice(0, 5)}` }))}
+                                    placeholder="Kamera tanlang..."
+                                />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Mikrofon</label>
-                                <select value={selectedAudioDevice} onChange={(e) => switchAudio(e.target.value)}
-                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 dark:text-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none cursor-pointer">
-                                    {audioDevices.map(device => (
-                                        <option key={device.deviceId} value={device.deviceId}>{device.label || `Mikrofon ${device.deviceId.slice(0, 5)}`}</option>
-                                    ))}
-                                </select>
+                                <Select
+                                    label="Mikrofon"
+                                    value={selectedAudioDevice}
+                                    onChange={switchAudio}
+                                    options={audioDevices.map(d => ({ value: d.deviceId, label: d.label || `Mikrofon ${d.deviceId.slice(0, 5)}` }))}
+                                    placeholder="Mikrofon tanlang..."
+                                />
                             </div>
                         </div>
                         <button onClick={() => setShowSettings(false)}
@@ -1403,6 +1558,7 @@ const RoomPage = () => {
                     </div>
                 </div>
             )}
+            {confirmModal}
         </div>
     );
 };
