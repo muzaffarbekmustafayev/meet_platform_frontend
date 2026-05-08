@@ -93,7 +93,7 @@ const DonutChart = ({ segments = [], size = 84 }) => {
     let off = 0;
     return (
         <svg width={size} height={size} viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r={r} fill="none" stroke="#e5e7eb" strokeWidth="4" />
+            <circle cx="18" cy="18" r={r} fill="none" stroke="currentColor" strokeWidth="4" className="text-gray-200 dark:text-gray-700" />
             {segments.map((seg, i) => {
                 const pct = seg.value / total;
                 const dash = pct * c, gap = c - dash;
@@ -103,7 +103,7 @@ const DonutChart = ({ segments = [], size = 84 }) => {
                 off += pct;
                 return el;
             })}
-            <circle cx="18" cy="18" r="10" fill="white" />
+            <circle cx="18" cy="18" r="10" fill="currentColor" className="text-white dark:text-gray-900" />
         </svg>
     );
 };
@@ -187,8 +187,8 @@ const AdminPage = () => {
             setShowModal(false);
             setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' });
             fetchData();
-            toast.success(editMode ? 'User updated' : 'User created');
-        } catch (err) { toast.error(err.response?.data?.message || 'Save failed'); }
+            toast.success(editMode ? t('save_btn') : t('create_btn'));
+        } catch (err) { toast.error(err.response?.data?.message || t('action_failed')); }
     };
 
     const openEdit = (u) => { setCurrentUser({ ...u, password: '' }); setEditMode(true); setShowModal(true); };
@@ -209,9 +209,9 @@ const AdminPage = () => {
     const chart = stats?.chartData || [];
 
     const navItems = [
-        { id: 'overview', label: 'Overview',    d: Icon.dashboard },
-        { id: 'users',    label: t('users'),    d: Icon.users },
-        { id: 'meetings', label: t('meetings'), d: Icon.meetings },
+        { id: 'overview', label: t('overview'),  d: Icon.dashboard },
+        { id: 'users',    label: t('users'),     d: Icon.users },
+        { id: 'meetings', label: t('meetings'),  d: Icon.meetings },
     ];
 
     return (
@@ -233,7 +233,7 @@ const AdminPage = () => {
 
                 {/* Nav */}
                 <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-                    <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest px-3 pb-2 pt-1">Boshqaruv</p>
+                    <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest px-3 pb-2 pt-1">{t('admin_nav_section')}</p>
                     {navItems.map(item => (
                         <button key={item.id} onClick={() => { setActiveTab(item.id); setSidebar(false); }}
                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'}`}>
@@ -310,14 +310,14 @@ const AdminPage = () => {
                         <div className="space-y-5">
                             {/* Top 4 stat cards */}
                             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                                <StatCard label={t('total_users')} value={stats?.totalUsers} sub={`+${stats?.newUsersToday ?? 0} bugun`}
+                                <StatCard label={t('total_users')} value={stats?.totalUsers} sub={`+${stats?.newUsersToday ?? 0} ${t('today_suffix')}`}
                                     accent="text-blue-600 dark:text-blue-400" icon={Icon.users} spark={chart} sparkKey="users" />
-                                <StatCard label="Faol uchrashuvlar" value={stats?.activeMeetings} sub={`+${stats?.newMeetingsToday ?? 0} bugun`}
+                                <StatCard label={t('active_meetings')} value={stats?.activeMeetings} sub={`+${stats?.newMeetingsToday ?? 0} ${t('today_suffix')}`}
                                     accent="text-purple-600 dark:text-purple-400" icon={Icon.meetings} spark={chart} sparkKey="meetings" />
-                                <StatCard label="Jami uchrashuvlar" value={stats?.totalMeetings}
-                                    sub={`${stats?.publicMeetings ?? 0} ommaviy · ${stats?.privateMeetings ?? 0} shaxsiy`}
+                                <StatCard label={t('total_meetings')} value={stats?.totalMeetings}
+                                    sub={`${stats?.publicMeetings ?? 0} ${t('public_label').toLowerCase()} · ${stats?.privateMeetings ?? 0} ${t('private_label').toLowerCase()}`}
                                     accent="text-emerald-600 dark:text-emerald-400" icon={Icon.chart} />
-                                <StatCard label="Jami xabarlar" value={stats?.totalMessages}
+                                <StatCard label={t('total_messages')} value={stats?.totalMessages}
                                     accent="text-amber-600 dark:text-amber-400" icon={Icon.msg} />
                             </div>
 
@@ -328,14 +328,14 @@ const AdminPage = () => {
                                 <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
                                     <div className="flex items-start justify-between mb-4">
                                         <div>
-                                            <h3 className="text-sm font-bold text-gray-800 dark:text-white">Faollik grafigi</h3>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Yangi foydalanuvchilar va uchrashuvlar soni</p>
+                                            <h3 className="text-sm font-bold text-gray-800 dark:text-white">{t('activity_chart')}</h3>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('chart_subtitle')}</p>
                                         </div>
                                         <div className="flex gap-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                             {[7, 14, 30].map(d => (
                                                 <button key={d} onClick={() => setChartDays(d)}
                                                     className={`px-3 py-1.5 text-xs font-semibold transition-colors ${chartDays === d ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                                                    {d}k
+                                                    {d}d
                                                 </button>
                                             ))}
                                         </div>
@@ -343,10 +343,10 @@ const AdminPage = () => {
                                     {/* Legend */}
                                     <div className="flex gap-5 mb-4">
                                         <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                            <span className="w-3 h-3 rounded-sm bg-blue-500" /> Foydalanuvchilar
+                                            <span className="w-3 h-3 rounded-sm bg-blue-500" /> {t('users')}
                                         </span>
                                         <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                            <span className="w-3 h-3 rounded-sm bg-purple-500" /> Uchrashuvlar
+                                            <span className="w-3 h-3 rounded-sm bg-purple-500" /> {t('meetings')}
                                         </span>
                                     </div>
                                     <BarChart data={chart} height={160} />
@@ -356,7 +356,7 @@ const AdminPage = () => {
                                 <div className="space-y-4">
                                     {/* User roles */}
                                     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
-                                        <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Foydalanuvchi rollari</h3>
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-4">{t('user_roles')}</h3>
                                         <div className="flex items-center gap-5">
                                             <DonutChart size={84} segments={[
                                                 { value: stats?.users  ?? 0, color: '#3b82f6' },
@@ -365,9 +365,9 @@ const AdminPage = () => {
                                             ]} />
                                             <div className="space-y-2 flex-1">
                                                 {[
-                                                    { label: 'User',    val: stats?.users,  color: 'bg-blue-500' },
-                                                    { label: 'Admin',   val: stats?.admins, color: 'bg-purple-500' },
-                                                    { label: 'Mehmon',  val: stats?.guests, color: 'bg-amber-400' },
+                                                    { label: t('users'),   val: stats?.users,  color: 'bg-blue-500' },
+                                                    { label: t('admins'),  val: stats?.admins, color: 'bg-purple-500' },
+                                                    { label: t('guests'),  val: stats?.guests, color: 'bg-amber-400' },
                                                 ].map(r => (
                                                     <div key={r.label} className="flex items-center gap-2">
                                                         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.color}`} />
@@ -381,7 +381,7 @@ const AdminPage = () => {
 
                                     {/* Meeting types */}
                                     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
-                                        <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Uchrashuv turlari</h3>
+                                        <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-4">{t('meeting_types')}</h3>
                                         <div className="flex items-center gap-5">
                                             <DonutChart size={84} segments={[
                                                 { value: stats?.publicMeetings  ?? 0, color: '#10b981' },
@@ -389,8 +389,8 @@ const AdminPage = () => {
                                             ]} />
                                             <div className="space-y-2 flex-1">
                                                 {[
-                                                    { label: 'Ommaviy',  val: stats?.publicMeetings,  color: 'bg-emerald-500' },
-                                                    { label: 'Shaxsiy',  val: stats?.privateMeetings, color: 'bg-rose-500' },
+                                                    { label: t('public_label'),  val: stats?.publicMeetings,  color: 'bg-emerald-500' },
+                                                    { label: t('private_label'), val: stats?.privateMeetings, color: 'bg-rose-500' },
                                                 ].map(r => (
                                                     <div key={r.label} className="flex items-center gap-2">
                                                         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.color}`} />
@@ -407,10 +407,10 @@ const AdminPage = () => {
                             {/* Bottom row */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {[
-                                    { label: 'Adminlar',       val: stats?.admins,      color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-                                    { label: 'Mehmonlar',      val: stats?.guests,      color: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                                    { label: 'Bloklangan',     val: stats?.blockedUsers, color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                                    { label: 'Bugun aktivlik', val: (stats?.newUsersToday ?? 0) + (stats?.newMeetingsToday ?? 0), color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-900/20', sub: `${stats?.newUsersToday ?? 0}u · ${stats?.newMeetingsToday ?? 0}m` },
+                                    { label: t('admins'),        val: stats?.admins,      color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                                    { label: t('guests'),        val: stats?.guests,      color: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                                    { label: t('blocked'),       val: stats?.blockedUsers, color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                                    { label: t('today_activity'), val: (stats?.newUsersToday ?? 0) + (stats?.newMeetingsToday ?? 0), color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-900/20', sub: `${stats?.newUsersToday ?? 0}u · ${stats?.newMeetingsToday ?? 0}m` },
                                 ].map(c => (
                                     <div key={c.label} className={`rounded-xl border border-gray-200 dark:border-gray-800 p-4 ${c.bg}`}>
                                         <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{c.label}</p>
@@ -423,14 +423,14 @@ const AdminPage = () => {
                             {/* Trend lines */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
-                                    { title: "Foydalanuvchilar o'sishi", val: stats?.totalUsers, key: 'users', color: '#3b82f6', accent: 'text-blue-600 dark:text-blue-400' },
-                                    { title: "Uchrashuvlar o'sishi",    val: stats?.totalMeetings, key: 'meetings', color: '#8b5cf6', accent: 'text-purple-600 dark:text-purple-400' },
+                                    { title: t('users_growth'),    val: stats?.totalUsers,    key: 'users',    color: '#3b82f6', accent: 'text-blue-600 dark:text-blue-400' },
+                                    { title: t('meetings_growth'), val: stats?.totalMeetings, key: 'meetings', color: '#8b5cf6', accent: 'text-purple-600 dark:text-purple-400' },
                                 ].map(c => (
                                     <div key={c.key} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
                                         <div className="flex items-center justify-between mb-3">
                                             <div>
                                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{c.title}</h3>
-                                                <p className="text-xs text-gray-400">So'nggi {chartDays} kun</p>
+                                                <p className="text-xs text-gray-400">{t('last_days_prefix')} {chartDays} {t('last_days_suffix')}</p>
                                             </div>
                                             <span className={`text-2xl font-bold ${c.accent}`}>{c.val ?? 0}</span>
                                         </div>
@@ -447,24 +447,24 @@ const AdminPage = () => {
                             {/* Filters */}
                             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex flex-wrap gap-3 items-center">
                                 <input value={userSearch} onChange={e => setUserSearch(e.target.value)}
-                                    placeholder="Ism yoki email qidirish..."
+                                    placeholder={t('search_user')}
                                     className="flex-1 min-w-[180px] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 transition" />
                                 <div className="w-40">
                                     <Select size="sm" value={userRole} onChange={setUserRole} options={[
-                                        { value: 'all', label: 'Barcha rollar' },
-                                        { value: 'user', label: 'User' },
-                                        { value: 'admin', label: 'Admin' },
-                                        { value: 'guest', label: 'Mehmon' },
+                                        { value: 'all',   label: t('all_roles') },
+                                        { value: 'user',  label: t('users') },
+                                        { value: 'admin', label: t('admins') },
+                                        { value: 'guest', label: t('role_guest') },
                                     ]} />
                                 </div>
                                 <div className="w-40">
                                     <Select size="sm" value={userStatus} onChange={setUserStatus} options={[
-                                        { value: 'all', label: 'Barcha holat' },
-                                        { value: 'active', label: 'Faol' },
-                                        { value: 'blocked', label: 'Bloklangan' },
+                                        { value: 'all',     label: t('all_status') },
+                                        { value: 'active',  label: t('active_status') },
+                                        { value: 'blocked', label: t('blocked') },
                                     ]} />
                                 </div>
-                                <span className="text-xs text-gray-400 ml-auto">{filteredUsers.length} ta natija</span>
+                                <span className="text-xs text-gray-400 ml-auto">{filteredUsers.length} {t('n_results')}</span>
                             </div>
 
                             {/* Table */}
@@ -473,7 +473,7 @@ const AdminPage = () => {
                                     <table className="w-full">
                                         <thead>
                                             <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
-                                                {['Foydalanuvchi', 'Role', 'Holat', 'Ro\'yxatdan', 'Amallar'].map((h, i) => (
+                                                {[t('user_col'), t('role'), t('status'), t('date'), t('actions')].map((h, i) => (
                                                     <th key={h} className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 4 ? 'text-right' : 'text-left'}`}>{h}</th>
                                                 ))}
                                             </tr>
@@ -502,28 +502,28 @@ const AdminPage = () => {
                                                     <td className="px-5 py-4">
                                                         <div className="flex items-center gap-1.5">
                                                             <div className={`w-1.5 h-1.5 rounded-full ${u.isBlocked ? 'bg-red-500' : 'bg-green-500'}`} />
-                                                            <span className="text-xs text-gray-600 dark:text-gray-400">{u.isBlocked ? 'Bloklangan' : 'Faol'}</span>
+                                                            <span className="text-xs text-gray-600 dark:text-gray-400">{u.isBlocked ? t('blocked') : t('unblocked')}</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-5 py-4 text-xs text-gray-400">{new Date(u.createdAt).toLocaleDateString()}</td>
                                                     <td className="px-5 py-4 text-right">
                                                         <button onClick={() => openEdit(u)} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 mr-3 transition-colors">
-                                                            <Ico d={Icon.edit} size={13} /> Tahrirlash
+                                                            <Ico d={Icon.edit} size={13} /> {t('edit_action')}
                                                         </button>
                                                         <button onClick={() => toggleBlock(u._id)} className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${u.isBlocked ? 'text-green-600 dark:text-green-400 hover:text-green-800' : 'text-red-600 dark:text-red-400 hover:text-red-800'}`}>
-                                                            <Ico d={Icon.block} size={13} /> {u.isBlocked ? 'Ochish' : 'Bloklash'}
+                                                            <Ico d={Icon.block} size={13} /> {u.isBlocked ? t('unblock_action') : t('block_action')}
                                                         </button>
                                                     </td>
                                                 </tr>
                                             )) : (
-                                                <tr><td colSpan="5" className="px-5 py-12 text-center text-sm text-gray-400">Foydalanuvchilar topilmadi.</td></tr>
+                                                <tr><td colSpan="5" className="px-5 py-12 text-center text-sm text-gray-400">{t('no_users_found')}</td></tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
                                 {filteredUsers.length > 0 && (
                                     <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-3 flex items-center text-xs text-gray-400">
-                                        Jami: <span className="font-semibold text-gray-600 dark:text-gray-300 ml-1">{filteredUsers.length}</span> ta foydalanuvchi
+                                        {t('total_n')}: <span className="font-semibold text-gray-600 dark:text-gray-300 ml-1">{filteredUsers.length}</span> {t('users').toLowerCase()}
                                     </div>
                                 )}
                             </div>
@@ -537,20 +537,20 @@ const AdminPage = () => {
                             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex flex-wrap gap-3 items-center">
                                 <div className="w-44">
                                     <Select size="sm" value={mtgStatus} onChange={setMtgStatus} options={[
-                                        { value: 'all', label: 'Barcha status' },
-                                        { value: 'active', label: 'Faol' },
-                                        { value: 'completed', label: 'Tugagan' },
-                                        { value: 'scheduled', label: 'Rejalashtirilgan' },
+                                        { value: 'all',       label: t('all_status') },
+                                        { value: 'active',    label: t('active_status') },
+                                        { value: 'completed', label: t('completed_status') },
+                                        { value: 'scheduled', label: t('scheduled_status') },
                                     ]} />
                                 </div>
                                 <div className="w-36">
                                     <Select size="sm" value={mtgType} onChange={setMtgType} options={[
-                                        { value: 'all', label: 'Barcha tur' },
-                                        { value: 'public', label: 'Ommaviy' },
-                                        { value: 'private', label: 'Shaxsiy' },
+                                        { value: 'all',     label: t('all_types') },
+                                        { value: 'public',  label: t('public_label') },
+                                        { value: 'private', label: t('private_label') },
                                     ]} />
                                 </div>
-                                <span className="text-xs text-gray-400 ml-auto">{filteredMtgs.length} ta natija</span>
+                                <span className="text-xs text-gray-400 ml-auto">{filteredMtgs.length} {t('n_results')}</span>
                             </div>
 
                             {/* Table */}
@@ -559,7 +559,7 @@ const AdminPage = () => {
                                     <table className="w-full">
                                         <thead>
                                             <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
-                                                {['Uchrashuv', 'Xost', 'Tur', 'Status', 'Sana', 'Amallar'].map((h, i) => (
+                                                {[t('meetings'), t('host'), t('type_col'), t('status'), t('date'), t('actions')].map((h, i) => (
                                                     <th key={h} className={`px-5 py-3.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 5 ? 'text-right' : 'text-left'}`}>{h}</th>
                                                 ))}
                                             </tr>
@@ -577,7 +577,7 @@ const AdminPage = () => {
                                                     </td>
                                                     <td className="px-5 py-4">
                                                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${m.roomType === 'public' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'}`}>
-                                                            {m.roomType === 'public' ? 'Ommaviy' : 'Shaxsiy'}
+                                                            {m.roomType === 'public' ? t('public_label') : t('private_label')}
                                                         </span>
                                                     </td>
                                                     <td className="px-5 py-4">
@@ -590,19 +590,19 @@ const AdminPage = () => {
                                                     <td className="px-5 py-4 text-right">
                                                         <button onClick={() => handleDeleteMeeting(m._id)}
                                                             className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-800 transition-colors">
-                                                            <Ico d={Icon.trash} size={13} /> O'chirish
+                                                            <Ico d={Icon.trash} size={13} /> {t('delete_action')}
                                                         </button>
                                                     </td>
                                                 </tr>
                                             )) : (
-                                                <tr><td colSpan="6" className="px-5 py-12 text-center text-sm text-gray-400">Uchrashuvlar topilmadi.</td></tr>
+                                                <tr><td colSpan="6" className="px-5 py-12 text-center text-sm text-gray-400">{t('no_meetings_found')}</td></tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
                                 {filteredMtgs.length > 0 && (
                                     <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-3 text-xs text-gray-400">
-                                        Jami: <span className="font-semibold text-gray-600 dark:text-gray-300 ml-1">{filteredMtgs.length}</span> ta uchrashuv
+                                        {t('total_n')}: <span className="font-semibold text-gray-600 dark:text-gray-300 ml-1">{filteredMtgs.length}</span> {t('meetings').toLowerCase()}
                                     </div>
                                 )}
                             </div>
@@ -619,7 +619,7 @@ const AdminPage = () => {
                     <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                         {/* Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                            <h3 className="text-base font-bold text-gray-900 dark:text-white">{editMode ? 'Foydalanuvchini tahrirlash' : t('add_user')}</h3>
+                            <h3 className="text-base font-bold text-gray-900 dark:text-white">{editMode ? t('edit_user') : t('add_user')}</h3>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                                 <Ico d={Icon.close} size={18} />
                             </button>
@@ -627,11 +627,10 @@ const AdminPage = () => {
                         {/* Form */}
                         <form onSubmit={handleSaveUser} className="p-6 space-y-4">
                             {[
-                                { label: 'To\'liq ism',  key: 'name',     type: 'text',     required: true,       ph: 'Ism Familiya' },
-                                { label: 'Email',        key: 'email',    type: 'email',    required: true,       ph: 'email@example.com' },
-                                { label: 'Username',     key: 'username', type: 'text',     required: false,      ph: 'username (ixtiyoriy)' },
-                                { label: editMode ? 'Parol (o\'zgartirmaslik uchun bo\'sh qoldiring)' : 'Parol',
-                                                         key: 'password', type: 'password', required: !editMode,  ph: '••••••••' },
+                                { label: t('full_name'),                                         key: 'name',     type: 'text',     required: true,      ph: t('name_placeholder') },
+                                { label: 'Email',                                                key: 'email',    type: 'email',    required: true,      ph: 'email@example.com' },
+                                { label: t('username'),                                          key: 'username', type: 'text',     required: false,     ph: 'username' },
+                                { label: editMode ? t('password_edit_hint') : t('password_label'), key: 'password', type: 'password', required: !editMode, ph: '••••••••' },
                             ].map(f => (
                                 <div key={f.key}>
                                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">{f.label}</label>
@@ -642,7 +641,7 @@ const AdminPage = () => {
                             ))}
                             <div>
                                 <Select
-                                    label="Rol"
+                                    label={t('role')}
                                     value={currentUser.role}
                                     onChange={v => setCurrentUser({ ...currentUser, role: v })}
                                     options={[
@@ -654,11 +653,11 @@ const AdminPage = () => {
                             <div className="flex justify-end gap-3 pt-2">
                                 <button type="button" onClick={() => setShowModal(false)}
                                     className="px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                    Bekor qilish
+                                    {t('cancel')}
                                 </button>
                                 <button type="submit"
                                     className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
-                                    {editMode ? 'Saqlash' : 'Yaratish'}
+                                    {editMode ? t('save_btn') : t('create_btn')}
                                 </button>
                             </div>
                         </form>

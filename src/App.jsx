@@ -7,6 +7,7 @@ const AuthPage    = lazy(() => import('./pages/AuthPage'))
 const Dashboard   = lazy(() => import('./pages/Dashboard'))
 const RoomPage    = lazy(() => import('./pages/RoomPage'))
 const AdminPage   = lazy(() => import('./pages/AdminPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 const Spinner = () => (
     <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -37,7 +38,7 @@ function AppRoutes() {
             <Route path="/admin" element={
                 user?.role === 'admin' ? <AdminPage /> : <Navigate to="/" replace />
             } />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
         </Routes>
     )
 }
