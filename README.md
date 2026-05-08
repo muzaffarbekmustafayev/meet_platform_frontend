@@ -1,86 +1,102 @@
-# Meetra Platform - Frontend
+# Meetra — Frontend
 
-The sleek, responsive, and feature-rich user interface for Meetra, a modern video conferencing platform. Built with React 19, Vite, and Tailwind CSS for a lightning-fast user experience.
+The web client for Meetra. React 19, Vite 6, Tailwind CSS 4. Designed to feel like Zoom: dark room, clean dock, fast call setup.
 
-## 🌟 Key Features
+## ✨ Features
 
-- **Modern UI/UX**: Clean, intuitive interface with Dark/Light mode support.
-- **Real-time Video/Audio**: High-quality WebRTC implementation using `simple-peer`.
-- **Dynamic Roles**: Special controls for Hosts, Co-hosts, and Participants.
-- **Waiting Room**: A polished pre-join experience with host approval logic.
-- **Interactive Chat**: Real-time messaging with participant status updates.
-- **Screen Sharing**: Advanced screen sharing with audio mixing capabilities.
-- **Responsive Design**: Fully optimized for Desktop, Tablet, and Mobile devices.
-- **Multilingual**: Built-in support for multiple languages (Uzbek, English, Russian).
+- **HD WebRTC video** — mesh topology via `simple-peer`
+- **Voice-isolated audio** — `echoCancellation`, `noiseSuppression`, `autoGainControl`, mono channel — no echo when multiple people speak
+- **Push-to-talk** — hold the mic button to talk while muted
+- **Screen sharing** — single-click flow, browser handles source + audio toggle
+- **Chat panel** — file attachments, edit/delete, message grouping, read receipts
+- **Participants panel** — search, role badges (Host / Co-host / Participant / Guest), per-user moderation
+- **Host controls** — mute everyone, end meeting for all, kick, block, promote co-host
+- **Hand raise**, **recording** (host-only), **meeting timer**
+- **Spotlight & pin**, **speaker / grid view** with auto-layout
+- **Dashboard** — recent meetings, schedule, profile, history with new-meeting shortcut
+- **Light / dark mode**, **uz / ru / en** with live switch
+- **PWA-ready** — responsive, safe-area aware, mobile gestures
 
-## 🛠 Tech Stack
+## 🛠 Stack
 
-- **Framework**: [React 19](https://react.dev/)
-- **Build Tool**: [Vite](https://vitejs.dev/)
-- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
-- **Icons**: [Lucide React](https://lucide.dev/) & [React Icons](https://react-icons.github.io/react-icons/)
-- **WebRTC**: [Simple-peer](https://github.com/feross/simple-peer)
-- **Real-time**: [Socket.io-client](https://socket.io/docs/v4/client-api/)
-- **Routing**: [React Router 7](https://reactrouter.com/)
+- [React 19](https://react.dev/) + [Vite 6](https://vitejs.dev/)
+- [Tailwind CSS 4](https://tailwindcss.com/) (no PostCSS config — uses native v4 engine)
+- [React Router 7](https://reactrouter.com/) — SPA routing
+- [simple-peer](https://github.com/feross/simple-peer) — WebRTC
+- [socket.io-client](https://socket.io/) — signaling + chat
+- [lucide-react](https://lucide.dev/) — icons
+- [axios](https://axios-http.com/) — HTTP
 
-## 📁 Project Structure
+## 📁 Structure
 
 ```text
-meet_platform_frontend/
-├── src/
-│   ├── components/     # Reusable UI components (Modals, Toggles, Video)
-│   ├── context/        # React Context API (Auth, Theme, Toast)
-│   ├── pages/          # Main application views (Dashboard, Room, Auth)
-│   ├── api.js          # Axios configuration and interceptors
-│   ├── App.jsx         # Main application entry and routing
-│   └── main.jsx        # React DOM rendering
-├── public/             # Static assets
-└── vercel.json         # Vercel deployment configuration
+src/
+├── components/
+│   ├── ChatPanel.jsx           # In-meeting chat
+│   ├── Video.jsx               # Per-participant video tile
+│   ├── room/
+│   │   ├── RoomBottomControls.jsx   # Dock (mic, cam, share, leave...)
+│   │   └── RoomScreens.jsx          # Waiting / denied screens
+│   ├── LanguageToggle.jsx
+│   ├── ThemeToggle.jsx
+│   ├── ConfirmModal.jsx
+│   └── Select.jsx
+├── context/
+│   ├── AuthContext.jsx         # JWT login state
+│   ├── ThemeLanguageContext.jsx # i18n + dark/light
+│   └── ToastContext.jsx
+├── pages/
+│   ├── AuthPage.jsx            # Login + register
+│   ├── Dashboard.jsx           # Home, Join, Schedule, Profile, History
+│   ├── RoomPage.jsx            # Live meeting
+│   └── AdminPage.jsx           # Admin console
+├── api.js                      # Axios instance + interceptors
+├── App.jsx                     # Routes
+└── main.jsx                    # Entry
 ```
 
-## ⚙️ Getting Started
+## ⚙️ Setup
 
-### Prerequisites
+```bash
+# Requires Node.js 18+
+npm install
+cp .env.example .env
+```
 
-- Node.js (v18+)
-- npm or yarn
+**`.env`**
 
-### Installation
+```env
+VITE_BACKEND_URL=http://localhost:5005
+VITE_APP_NAME=Meetra
+```
 
-1. Navigate to the frontend folder:
-   ```bash
-   cd meet_platform_frontend
-   ```
+## 🧑‍💻 Scripts
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+| Command           | What it does                          |
+| ----------------- | ------------------------------------- |
+| `npm run dev`     | Vite dev server on `:5173`            |
+| `npm run build`   | Production build → `dist/`            |
+| `npm run preview` | Serve the built `dist/` locally       |
+| `npm run lint`    | ESLint                                |
 
-3. Create a `.env` file based on `.env.example`:
-   ```env
-   VITE_BACKEND_URL=http://localhost:5005
-   ```
+## 🏗 Build pipeline
 
-4. Start the development server:
-   ```bash
-   npm run dev
-   ```
+`vite.config.js` is tuned for production:
 
-5. Build for production:
-   ```bash
-   npm run build
-   ```
+- Pre-bundles `simple-peer`, `socket.io-client`, `buffer`
+- `define: { global: 'globalThis' }` so peer libs resolve `global` at build time
+- Manual chunks split: `react-vendor`, `webrtc`, `icons`, app code → better edge cache hits
+- Targets `es2020`
 
-## 🚀 Deployment
+## 🚀 Deploy to Vercel
 
-The project is optimized for [Vercel](https://vercel.com/).
-
-1. Connect your repository to Vercel.
-2. Set the **Root Directory** to `meet_platform_frontend`.
-3. Add `VITE_BACKEND_URL` to the Environment Variables.
-4. Deploy!
+1. Import the repo in Vercel.
+2. **Root Directory** = `meet_platform_frontend`.
+3. Framework Preset = **Vite** (auto).
+4. Env var: `VITE_BACKEND_URL=https://your-backend.example.com`.
+5. The included [`vercel.json`](./vercel.json) rewrites all paths to `index.html` so React Router's deep links survive a hard refresh.
+6. If you see a 403 on the deployment, disable **Deployment Protection** in **Project → Settings**.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT
