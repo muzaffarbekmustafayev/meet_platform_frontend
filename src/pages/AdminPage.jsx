@@ -169,26 +169,59 @@ const AdminPage = () => {
     const handleLogout = () => { logout(); navigate('/login', { replace: true }); };
 
     const toggleBlock = async (id) => {
-        try { await API.put(`/api/admin/users/${id}/block`); fetchData(); }
-        catch { toast.error(t('action_failed')); }
+        try {
+            await API.put(`/api/admin/users/${id}/block`);
+            toast.success(t('action_failed')); // Shunga toggle qilindi
+            fetchData();
+        } catch (err) {
+            console.error('Block user error:', err);
+            toast.error(err.response?.data?.message || t('action_failed'));
+        }
+    };
+
+    const handleDeleteUser = async (id, userName) => {
+        const ok = await confirm(`${t('confirm_delete_meeting')} "${userName}"?`);
+        if (!ok) return;
+        try {
+            await API.delete(`/api/admin/users/${id}`);
+            toast.success(t('action_failed')); // O'chirildi
+            fetchData();
+        } catch (err) {
+            console.error('Delete user error:', err);
+            toast.error(err.response?.data?.message || t('action_failed'));
+        }
     };
 
     const handleDeleteMeeting = async (id) => {
-        if (!await confirm(t('confirm_delete_meeting'))) return;
-        try { await API.delete(`/api/admin/meetings/${id}`); toast.success(t('meeting_deleted')); fetchData(); }
-        catch { toast.error(t('action_failed')); }
+        const ok = await confirm(t('confirm_delete_meeting'));
+        if (!ok) return;
+        try {
+            await API.delete(`/api/admin/meetings/${id}`);
+            toast.success(t('meeting_deleted'));
+            fetchData();
+        } catch (err) {
+            console.error('Delete meeting error:', err);
+            toast.error(err.response?.data?.message || t('action_failed'));
+        }
     };
 
     const handleSaveUser = async (e) => {
         e.preventDefault();
         try {
-            if (editMode) await API.put(`/api/admin/users/${currentUser._id}`, currentUser);
-            else await API.post('/api/admin/users', currentUser);
+            if (editMode) {
+                await API.put(`/api/admin/users/${currentUser._id}`, currentUser);
+                toast.success(t('save_btn'));
+            } else {
+                await API.post('/api/admin/users', currentUser);
+                toast.success(t('create_btn'));
+            }
             setShowModal(false);
             setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' });
             fetchData();
-            toast.success(editMode ? t('save_btn') : t('create_btn'));
-        } catch (err) { toast.error(err.response?.data?.message || t('action_failed')); }
+        } catch (err) {
+            console.error('Save user error:', err);
+            toast.error(err.response?.data?.message || t('action_failed'));
+        }
     };
 
     const openEdit = (u) => { setCurrentUser({ ...u, password: '' }); setEditMode(true); setShowModal(true); };
@@ -506,12 +539,15 @@ const AdminPage = () => {
                                                         </div>
                                                     </td>
                                                     <td className="px-5 py-4 text-xs text-gray-400">{new Date(u.createdAt).toLocaleDateString()}</td>
-                                                    <td className="px-5 py-4 text-right">
-                                                        <button onClick={() => openEdit(u)} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 mr-3 transition-colors">
+                                                    <td className="px-5 py-4 text-right space-x-2">
+                                                        <button onClick={() => openEdit(u)} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 transition-colors">
                                                             <Ico d={Icon.edit} size={13} /> {t('edit_action')}
                                                         </button>
                                                         <button onClick={() => toggleBlock(u._id)} className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${u.isBlocked ? 'text-green-600 dark:text-green-400 hover:text-green-800' : 'text-red-600 dark:text-red-400 hover:text-red-800'}`}>
                                                             <Ico d={Icon.block} size={13} /> {u.isBlocked ? t('unblock_action') : t('block_action')}
+                                                        </button>
+                                                        <button onClick={() => handleDeleteUser(u._id, u.name)} className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-800 transition-colors">
+                                                            <Ico d={Icon.trash} size={13} /> {t('delete_action')}
                                                         </button>
                                                     </td>
                                                 </tr>
