@@ -186,13 +186,13 @@ const AuthPage = () => {
                     <div className="absolute bottom-[-10%] left-[-5%] w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-purple-500/5 rounded-full blur-[80px]" />
                 </div>
 
-                <div className="w-full max-w-[1000px] min-h-[500px] md:min-h-[660px] bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-2xl shadow-gray-200/50 dark:shadow-black/30 overflow-hidden flex flex-col md:flex-row relative z-10 border border-gray-100 dark:border-gray-800/50">
-                    <div className="w-full flex flex-col md:flex-row relative min-h-inherit">
+                <div className="w-full max-w-[1000px] min-h-[500px] md:min-h-[660px] bg-white dark:bg-gray-900 rounded-2xl sm:rounded-[2.5rem] shadow-2xl shadow-gray-200/50 dark:shadow-black/30 overflow-hidden flex flex-col lg:flex-row relative z-10 border border-gray-100 dark:border-gray-800/50">
+                    <div className="w-full flex flex-col lg:flex-row relative min-h-inherit">
 
                         {/* Sliding gradient overlay panel */}
                         <div
-                            className={`hidden md:flex absolute md:top-0 h-full w-full md:w-1/2 text-white p-6 md:p-12 flex-col justify-between z-30 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]
-                                ${isLogin ? 'md:left-1/2 md:rounded-r-[2.5rem]' : 'md:left-0 md:rounded-l-[2.5rem]'}`}
+                            className={`hidden lg:flex absolute lg:top-0 h-full w-full lg:w-1/2 text-white p-6 lg:p-12 flex-col justify-between z-30 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]
+                                ${isLogin ? 'lg:left-1/2 lg:rounded-r-[2.5rem]' : 'lg:left-0 lg:rounded-l-[2.5rem]'}`}
                             style={{
                                 background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 40%, #6366f1 100%)',
                             }}
@@ -228,8 +228,8 @@ const AuthPage = () => {
                         {/* Forms container */}
                         <div className="flex-1 flex relative h-full">
                             {/* Login */}
-                            <div className={`w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] h-full absolute md:static
-                                ${isLogin ? 'opacity-100 translate-x-0 scale-100 z-20' : 'opacity-0 md:-translate-x-10 translate-x-10 scale-95 z-10 pointer-events-none'}`}>
+                            <div className={`w-full lg:w-1/2 p-5 sm:p-8 md:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] h-full absolute lg:static
+                                ${isLogin ? 'opacity-100 translate-x-0 scale-100 z-20' : 'opacity-0 lg:-translate-x-10 translate-x-10 scale-95 z-10 pointer-events-none'}`}>
                                 <div className="w-full max-w-sm mx-auto">
                                     <h2 className="text-3xl font-black text-gray-900 dark:text-white text-center mb-2 tracking-tight">{t('login_title')}</h2>
                                     <p className="text-gray-400 text-center mb-10 text-sm font-medium">{t('enter_details')}</p>
@@ -265,7 +265,7 @@ const AuthPage = () => {
                                         </button>
 
                                         {/* Mobile toggle - more prominent */}
-                                        <div className="md:hidden text-center mt-6">
+                                        <div className="lg:hidden text-center mt-6">
                                             <div className="text-gray-400 text-xs mb-2">{t('login_desc')}</div>
                                             <button
                                                 type="button"
@@ -301,8 +301,8 @@ const AuthPage = () => {
                             </div>
 
                             {/* Register */}
-                            <div className={`w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] h-full absolute md:static right-0
-                                ${!isLogin ? 'opacity-100 translate-x-0 scale-100 z-20' : 'opacity-0 md:translate-x-10 -translate-x-10 scale-95 z-10 pointer-events-none'}`}>
+                            <div className={`w-full lg:w-1/2 p-5 sm:p-8 md:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] h-full absolute lg:static right-0
+                                ${!isLogin ? 'opacity-100 translate-x-0 scale-100 z-20' : 'opacity-0 lg:translate-x-10 -translate-x-10 scale-95 z-10 pointer-events-none'}`}>
                                 <div className="w-full max-w-sm mx-auto">
                                     <h2 className="text-3xl font-black text-gray-900 dark:text-white text-center mb-2 tracking-tight">{t('register_title')}</h2>
                                     <p className="text-gray-400 text-center mb-8 text-sm font-medium">{t('create_free_account')}</p>
@@ -343,7 +343,7 @@ const AuthPage = () => {
                                         </button>
 
                                         {/* Mobile toggle - more prominent */}
-                                        <div className="md:hidden text-center mt-6">
+                                        <div className="lg:hidden text-center mt-6">
                                             <div className="text-gray-400 text-xs mb-2">{t('register_desc')}</div>
                                             <button
                                                 type="button"

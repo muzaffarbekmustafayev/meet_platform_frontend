@@ -30,6 +30,46 @@
   --ring: rgba(14, 113, 235, 0.35);
 }
 
+/* ─── iOS / Mobile global fixes ──────────────────────────────────────────── */
+
+/* iOS Safari: viewport height (notch/toolbar aware) */
+html {
+  height: -webkit-fill-available;
+}
+
+body {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* iOS input zoom oldini olish — 16px dan kichik font bo'lsa Safari zoom qiladi */
+input, select, textarea {
+  font-size: 16px;
+}
+
+/* Touch scroll smooth */
+.overflow-y-auto,
+.overflow-x-auto,
+.custom-scrollbar {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area — notch va home indicator uchun */
+.safe-top    { padding-top:    env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-left   { padding-left:   env(safe-area-inset-left); }
+.safe-right  { padding-right:  env(safe-area-inset-right); }
+
+/* Room sahifasi uchun safe area */
+.room-bottom-bar {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Prevent tap highlight on touch devices */
+button, a, label {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Smooth theme transitions — only on intentional toggle, not on initial load */
 *, *::before, *::after {
   transition-property: background-color, border-color, color, box-shadow;
@@ -52,6 +92,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg);
   color: var(--text);
+  /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
 }
 
 .dark body {
@@ -62,10 +104,17 @@ h1, h2, h3, h4, .font-outfit {
   font-family: 'Outfit', sans-serif;
 }
 
-/* Custom Scrollbar */
+/* ─── Custom Scrollbar ────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
+}
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
 }
 
 ::-webkit-scrollbar-track {
@@ -73,19 +122,52 @@ h1, h2, h3, h4, .font-outfit {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.3);
-  border-radius: 10px;
+  background: rgba(156, 163, 175, 0.25);
+  border-radius: 99px;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.5);
+  background: rgba(156, 163, 175, 0.45);
 }
 
-/* Glassmorphism */
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Room thumbnail strip scroll — thinner, fade edges */
+.thumb-strip {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+.thumb-strip::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+.thumb-strip::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 99px;
+}
+
+.thumb-strip::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+/* ─── Touch target minimum size ──────────────────────────────────────────── */
+/* iOS HIG: minimum 44x44px touch target */
+@media (max-width: 767px) {
+  button, [role="button"] {
+    min-height: 36px;
+    min-width: 36px;
+  }
+}
+
+/* ─── Glassmorphism ───────────────────────────────────────────────────────── */
 .glass {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
@@ -98,7 +180,7 @@ h1, h2, h3, h4, .font-outfit {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Animations */
+/* ─── Animations ──────────────────────────────────────────────────────────── */
 @keyframes float {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-10px); }
@@ -132,9 +214,31 @@ h1, h2, h3, h4, .font-outfit {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
 }
 
-/* Gradients */
+/* ─── Gradients ───────────────────────────────────────────────────────────── */
 .gradient-orange { background: linear-gradient(135deg, #FF9D6C 0%, #FF742E 100%); }
-.gradient-blue { background: linear-gradient(135deg, #4FA1FF 0%, #0E71EB 100%); }
-.gradient-green { background: linear-gradient(135deg, #2DDCBF 0%, #00A389 100%); }
+.gradient-blue   { background: linear-gradient(135deg, #4FA1FF 0%, #0E71EB 100%); }
+.gradient-green  { background: linear-gradient(135deg, #2DDCBF 0%, #00A389 100%); }
 .gradient-purple { background: linear-gradient(135deg, #B28BFF 0%, #8C52FF 100%); }
 
+/* ─── Room page layout helpers ────────────────────────────────────────────── */
+/* Full-height fix for room page on iOS */
+.room-fullheight {
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport height — iOS 15.4+ */
+}
+
+/* Horizontal scroll for thumbnails on mobile */
+.thumb-scroll-x {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 0.5rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.thumb-scroll-x > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}

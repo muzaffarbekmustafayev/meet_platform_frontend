@@ -7,6 +7,10 @@ export default {
     darkMode: 'class',
     theme: {
         extend: {
+            screens: {
+                xs: '480px',
+                tablet: '768px',
+            },
             fontFamily: {
                 sans: ['Inter', 'ui-sans-serif', 'system-ui'],
             },

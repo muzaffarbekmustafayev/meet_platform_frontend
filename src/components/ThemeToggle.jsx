@@ -6,40 +6,59 @@ const ThemeToggle = ({ compact = false }) => {
     const { theme, toggleTheme } = useContext(ThemeLanguageContext);
     const isDark = theme === 'dark';
 
-    return (
-        <button
-            onClick={toggleTheme}
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className={`relative flex items-center shrink-0 rounded-full border transition-colors duration-300
-                ${isDark
-                    ? 'bg-[#1e2430] border-white/10 hover:border-white/20'
-                    : 'bg-gray-100 border-gray-200 hover:border-gray-300'}
-                ${compact ? 'w-12 h-6' : 'w-14 h-7'}`}
-            aria-label="Toggle theme"
-        >
-            {/* Track icons */}
-            <span className={`absolute left-1.5 transition-opacity duration-200 ${isDark ? 'opacity-40' : 'opacity-100'}`}>
-                <Sun size={compact ? 10 : 12} className="text-amber-500" />
-            </span>
-            <span className={`absolute right-1.5 transition-opacity duration-200 ${isDark ? 'opacity-100' : 'opacity-30'}`}>
-                <Moon size={compact ? 10 : 12} className="text-blue-400" />
-            </span>
-
-            {/* Sliding knob */}
-            <span
-                className={`absolute top-0.5 flex items-center justify-center rounded-full shadow-md transition-all duration-300 ease-in-out
-                    ${isDark ? 'bg-[#2d3748] border border-white/10' : 'bg-white border border-gray-200'}
-                    ${compact ? 'w-5 h-5' : 'w-6 h-6'}
+    if (compact) {
+        return (
+            <button
+                onClick={toggleTheme}
+                title={isDark ? 'Light modega o\'tish' : 'Dark modega o\'tish'}
+                aria-label="Toggle theme"
+                className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200
                     ${isDark
-                        ? compact ? 'translate-x-6' : 'translate-x-7'
-                        : 'translate-x-0.5'}`}
+                        ? 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 text-blue-300'
+                        : 'bg-gray-100 border-gray-200 hover:bg-gray-200 hover:border-gray-300 text-amber-500'}`}
             >
-                {isDark
-                    ? <Moon size={compact ? 9 : 11} className="text-blue-300" />
-                    : <Sun size={compact ? 9 : 11} className="text-amber-500" />
-                }
-            </span>
-        </button>
+                {isDark ? <Moon size={14} /> : <Sun size={14} />}
+            </button>
+        );
+    }
+
+    return (
+        <div
+            className={`flex items-center p-1 rounded-xl border transition-all duration-200
+                ${isDark
+                    ? 'bg-white/5 border-white/10'
+                    : 'bg-gray-100 border-gray-200'}`}
+            role="group"
+            aria-label="Tema tanlash"
+        >
+            {/* Light button */}
+            <button
+                onClick={() => !isDark ? null : toggleTheme()}
+                title="Light mode"
+                aria-pressed={!isDark}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200
+                    ${!isDark
+                        ? 'bg-white text-amber-600 shadow-sm border border-gray-200'
+                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400'}`}
+            >
+                <Sun size={13} />
+                <span>Light</span>
+            </button>
+
+            {/* Dark button */}
+            <button
+                onClick={() => isDark ? null : toggleTheme()}
+                title="Dark mode"
+                aria-pressed={isDark}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200
+                    ${isDark
+                        ? 'bg-[#2d3748] text-blue-300 shadow-sm border border-white/10'
+                        : 'text-gray-400 hover:text-gray-600'}`}
+            >
+                <Moon size={13} />
+                <span>Dark</span>
+            </button>
+        </div>
     );
 };
 

@@ -299,8 +299,8 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                 <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none" />
                 <div className="absolute bottom-[-10%] left-[-5%] w-[300px] h-[300px] bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
                 
-                <div className="max-w-6xl mx-auto px-6 py-12 md:py-16 relative z-10">
-                    <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-10">
+                <div className="max-w-6xl mx-auto px-4 xs:px-6 py-8 xs:py-10 md:py-16 relative z-10">
+                    <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-6 md:gap-10">
                         <div className="text-center md:text-left flex-1">
                             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800/50 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-widest mb-4">
                                 <span className="relative flex h-2 w-2">
@@ -325,9 +325,9 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                 </div>
             </div>
 
-            <div className="max-w-6xl mx-auto px-6 py-12">
+            <div className="max-w-6xl mx-auto px-4 xs:px-6 py-8 xs:py-10 sm:py-12">
                 {/* Action Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-16">
+                <div className="grid grid-cols-1 xs:grid-cols-2 tablet:grid-cols-4 gap-4 xs:gap-5 sm:gap-6 md:gap-8 mb-10 sm:mb-16">
                     {actions.map(action => (
                         <button
                             key={action.id}
@@ -535,7 +535,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                 )}
 
                 {/* Dashboard Bottom Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div className="grid grid-cols-1 tablet:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
                     {/* Left: Recent Activity */}
                     <div className="lg:col-span-2 bg-white dark:bg-gray-800/40 rounded-[2.5rem] border border-gray-100 dark:border-gray-800/60 shadow-sm p-8 sm:p-10 relative overflow-hidden">
                         <div className="flex items-center justify-between mb-10">
