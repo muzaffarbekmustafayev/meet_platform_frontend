@@ -197,6 +197,21 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
         setRoomPassword(Array.from(arr).map(b => chars[b % chars.length]).join(''));
     };
 
+    // Stats helpers
+    const now = new Date();
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0,0,0,0);
+    const startOfDay  = new Date(now); startOfDay.setHours(0,0,0,0);
+    const thisWeekCount  = history.filter(m => new Date(m.createdAt) >= startOfWeek).length;
+    const todayCount     = history.filter(m => new Date(m.createdAt) >= startOfDay).length;
+
+    // Greeting
+    const hour = now.getHours();
+    const greeting = lang === 'uz'
+        ? (hour < 12 ? 'Xayrli tong' : hour < 17 ? 'Xayrli kun' : 'Xayrli kech')
+        : lang === 'ru'
+            ? (hour < 12 ? 'Доброе утро' : hour < 17 ? 'Добрый день' : 'Добрый вечер')
+            : (hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening');
+
     // Get password strength
     const getPasswordStrength = () => {
         if (!roomPassword) return { level: 0, text: '', color: 'gray' };
@@ -239,115 +254,137 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
         }
     };
 
-    const hh = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    const hh = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     const dateStr = time.toLocaleDateString(
         lang === 'uz' ? 'uz-UZ' : lang === 'ru' ? 'ru-RU' : 'en-US',
-        { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }
+        { weekday: 'long', month: 'long', day: 'numeric' }
     );
 
-    // Beautiful Action buttons config
     const actions = [
         {
             id: 'new',
             label: lang === 'uz' ? 'Yangi uchrashuv' : lang === 'ru' ? 'Новая встреча' : 'New Meeting',
-            bg: 'gradient-orange',
-            iconBg: 'bg-white/25',
-            iconColor: 'text-white',
+            color: 'bg-orange-500',
+            shadow: 'shadow-orange-500/30',
             show: userInfo?.role !== 'admin',
             icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />,
-            onClick: null,
         },
         {
             id: 'join',
             label: lang === 'uz' ? 'Qo\'shilish' : lang === 'ru' ? 'Войти' : 'Join',
-            bg: 'gradient-blue',
-            iconBg: 'bg-white/25',
-            iconColor: 'text-white',
+            color: 'bg-blue-600',
+            shadow: 'shadow-blue-600/30',
             show: userInfo?.role !== 'admin',
             icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />,
-            onClick: () => onNav('join'),
         },
         {
             id: 'schedule',
             label: lang === 'uz' ? 'Rejalashtirish' : lang === 'ru' ? 'Запланировать' : 'Schedule',
-            bg: 'gradient-green',
-            iconBg: 'bg-white/25',
-            iconColor: 'text-white',
+            color: 'bg-emerald-500',
+            shadow: 'shadow-emerald-500/30',
             show: true,
             icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
-            onClick: () => onNav('schedule'),
         },
         {
             id: 'share',
             label: lang === 'uz' ? 'Ekran ulashish' : lang === 'ru' ? 'Показ экрана' : 'Share Screen',
-            bg: 'gradient-purple',
-            iconBg: 'bg-white/25',
-            iconColor: 'text-white',
+            color: 'bg-violet-600',
+            shadow: 'shadow-violet-600/30',
             show: userInfo?.role !== 'admin',
             icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
-            onClick: () => onNav('join'),
         },
     ].filter(a => a.show);
 
     const [showNewMeeting, setShowNewMeeting] = useState(false);
 
+    const handleActionClick = (id) => {
+        if (id === 'new') { setShowNewMeeting(v => !v); return; }
+        if (id === 'join') { onNav('join'); return; }
+        if (id === 'schedule') { onNav('schedule'); return; }
+        if (id === 'share') { onNav('join'); return; }
+    };
+
+    const recentThree = history.slice(0, 5);
+
     return (
-        <div className="flex-1 overflow-y-auto bg-gray-50/30 dark:bg-gray-950/20 custom-scrollbar">
-            {/* Top Hero Section */}
-            <div className="relative bg-white dark:bg-[#0d1117] border-b border-gray-100 dark:border-gray-800/60 overflow-hidden">
-                {/* Decorative Elements */}
-                <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none" />
-                <div className="absolute bottom-[-10%] left-[-5%] w-[300px] h-[300px] bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
-                
-                <div className="max-w-6xl mx-auto px-4 xs:px-6 py-8 xs:py-10 md:py-16 relative z-10">
-                    <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-6 md:gap-10">
-                        <div className="text-center md:text-left flex-1">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800/50 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-widest mb-4">
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-[#0b0e14]">
+
+            {/* ── Hero Banner ─────────────────────────────────────────────── */}
+            <div className="relative bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 dark:from-[#0e1829] dark:via-[#0c1524] dark:to-[#0f1220] overflow-hidden">
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+                    <div className="absolute top-10 left-1/2 w-80 h-80 bg-indigo-400/8 rounded-full blur-3xl -translate-x-1/2" />
+                    <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-blue-300/8 rounded-full blur-2xl" />
+                </div>
+
+                <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-0">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+                        {/* Left: greeting */}
+                        <div>
+                            <div className="flex items-center gap-2 mb-2">
                                 <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-60" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-200" />
                                 </span>
-                                System Live
+                                <span className="text-blue-200 text-xs font-semibold uppercase tracking-widest">{dateStr}</span>
                             </div>
-                            <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight leading-tight">
-                                {lang === 'uz' ? `Xush kelibsiz, ${userInfo.name}!` : lang === 'ru' ? `Добро пожаловать, ${userInfo.name}!` : `Welcome back, ${userInfo.name}!`}
+                            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                                {greeting},&nbsp;
+                                <span className="text-blue-200">{userInfo.name.split(' ')[0]}!</span>
                             </h1>
-                            <p className="text-lg text-gray-500 dark:text-gray-400 max-w-md">
-                                {lang === 'uz' ? 'Bugungi uchrashuvlarga tayyormisiz? Ish unumdorligini oshiramiz.' : lang === 'ru' ? 'Готовы к встречам? Давайте сделаем этот день продуктивным.' : 'Ready for your meetings today? Let\'s make it productive.'}
+                            <p className="text-blue-200/60 text-sm mt-1.5 font-medium">
+                                {todayCount > 0
+                                    ? (lang === 'uz' ? `Bugun ${todayCount} ta uchrashuv` : lang === 'ru' ? `Сегодня ${todayCount} встреч` : `${todayCount} meeting${todayCount !== 1 ? 's' : ''} today`)
+                                    : (lang === 'uz' ? 'Bugun hali uchrashuv yo\'q' : lang === 'ru' ? 'Сегодня встреч нет' : 'No meetings today yet')}
                             </p>
                         </div>
-                        
-                        <div className="shrink-0 text-center md:text-right select-none glass dark:bg-gray-800/40 px-10 py-7 rounded-[2.5rem] border border-white dark:border-white/10 shadow-xl shadow-gray-200/40 dark:shadow-black/40">
-                            <p className="text-6xl font-black text-gray-900 dark:text-white tracking-tighter tabular-nums mb-1 font-outfit">{hh}</p>
-                            <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{dateStr}</p>
+
+                        {/* Right: clock */}
+                        <div className="select-none shrink-0 text-right">
+                            <p className="text-5xl sm:text-6xl font-black text-white tabular-nums tracking-tighter leading-none font-outfit">{hh}</p>
                         </div>
+                    </div>
+
+                    {/* Stats strip */}
+                    <div className="flex items-center gap-3 sm:gap-4 mt-6 pb-6 overflow-x-auto">
+                        {[
+                            { label: lang === 'uz' ? 'Jami' : lang === 'ru' ? 'Всего' : 'Total', value: history.length },
+                            { label: lang === 'uz' ? 'Bu hafta' : lang === 'ru' ? 'На неделе' : 'This week', value: thisWeekCount },
+                            { label: lang === 'uz' ? 'Bugun' : lang === 'ru' ? 'Сегодня' : 'Today', value: todayCount },
+                        ].map(s => (
+                            <div key={s.label} className="shrink-0 flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2.5">
+                                <p className="text-xl font-black text-white tabular-nums">{s.value}</p>
+                                <p className="text-xs text-blue-200/70 font-semibold leading-tight">{s.label}</p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
 
-            <div className="max-w-6xl mx-auto px-4 xs:px-6 py-8 xs:py-10 sm:py-12">
-                {/* Action Grid */}
-                <div className="grid grid-cols-1 xs:grid-cols-2 tablet:grid-cols-4 gap-4 xs:gap-5 sm:gap-6 md:gap-8 mb-10 sm:mb-16">
+            {/* ── Action buttons ───────────────────────────────────────────── */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                     {actions.map(action => (
                         <button
                             key={action.id}
-                            onClick={action.id === 'new' ? () => setShowNewMeeting(v => !v) : action.onClick}
-                            className={`${action.bg} rounded-[2rem] p-7 flex flex-col items-start gap-5 shadow-2xl transition-all duration-300 premium-card group relative overflow-hidden`}
+                            onClick={() => handleActionClick(action.id)}
+                            className="group flex flex-col items-center gap-3 p-5 sm:p-6 bg-white dark:bg-[#161b22] rounded-2xl hover:bg-gray-50 dark:hover:bg-[#1c222d] hover:shadow-lg dark:hover:shadow-black/40 transition-colors duration-200"
                         >
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/30 transition-colors" />
-                            <div className={`w-16 h-16 ${action.iconBg} rounded-[1.25rem] flex items-center justify-center transition-transform relative z-10 shadow-lg backdrop-blur-sm border border-white/20`}>
-                                <svg className={`w-8 h-8 ${action.iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className={`w-14 h-14 ${action.color} shadow-lg ${action.shadow} rounded-2xl flex items-center justify-center`}>
+                                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     {action.icon}
                                 </svg>
                             </div>
-                            <span className="text-white font-extrabold text-lg sm:text-xl tracking-tight relative z-10">{action.label}</span>
+                            <span className="text-sm font-bold text-gray-800 dark:text-gray-100 text-center leading-tight">{action.label}</span>
                         </button>
                     ))}
                 </div>
+            </div>
 
-                {/* New Meeting Input Container */}
-                {showNewMeeting && (
-                    <div className="mb-16 glass dark:bg-gray-800/80 border border-white/50 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl shadow-gray-200/50 dark:shadow-black/40 animate-in slide-in-from-top-6 duration-500 ease-out">
+            {/* ── New Meeting panel ────────────────────────────────────────── */}
+            {showNewMeeting && (
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+                    <div className="bg-white dark:bg-[#161b22] rounded-2xl p-6 sm:p-8 shadow-xl dark:shadow-black/40">
                         <div className="space-y-6">
                             {/* Meeting Title */}
                             <div>
@@ -525,80 +562,111 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                             </div>
                         </div>
                     </div>
-                )}
+                </div>
+            )}
 
-                {comingSoon.show && (
-                    <ComingSoonModal 
-                        onClose={() => setComingSoon({ show: false, name: '' })} 
-                        featureName={comingSoon.name} 
-                    />
-                )}
+            {comingSoon.show && (
+                <ComingSoonModal
+                    onClose={() => setComingSoon({ show: false, name: '' })}
+                    featureName={comingSoon.name}
+                />
+            )}
 
-                {/* Dashboard Bottom Section */}
-                <div className="grid grid-cols-1 tablet:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
-                    {/* Left: Recent Activity */}
-                    <div className="lg:col-span-2 bg-white dark:bg-gray-800/40 rounded-[2.5rem] border border-gray-100 dark:border-gray-800/60 shadow-sm p-8 sm:p-10 relative overflow-hidden">
-                        <div className="flex items-center justify-between mb-10">
-                            <div className="flex items-center gap-3">
-                                <div className="w-1.5 h-8 bg-blue-500 rounded-full" />
-                                <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-                                    {lang === 'uz' ? 'So\'nggi uchrashuvlar' : lang === 'ru' ? 'Последние встречи' : 'Recent Meetings'}
-                                </h2>
-                            </div>
-                            <button onClick={() => onNav('history')} className="px-5 py-2 rounded-full bg-gray-50 dark:bg-gray-900/50 text-sm font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all border border-transparent hover:border-blue-100 dark:hover:border-blue-800">
-                                {lang === 'uz' ? 'Barchasi' : lang === 'ru' ? 'Все' : 'View All'}
-                            </button>
+            {/* ── Bottom content grid ──────────────────────────────────────── */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
+
+                {/* Recent Meetings — 2/3 */}
+                <div className="lg:col-span-2 bg-white dark:bg-[#161b22] rounded-2xl overflow-hidden">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/5">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-1 h-5 bg-blue-500 rounded-full" />
+                            <h2 className="text-base font-bold text-gray-900 dark:text-white">
+                                {lang === 'uz' ? 'So\'nggi uchrashuvlar' : lang === 'ru' ? 'Последние встречи' : 'Recent Meetings'}
+                            </h2>
                         </div>
-                        
-                        {history.length > 0 ? (
-                            <div className="space-y-4">
-                                {history.slice(0, 3).map(m => (
-                                    <div key={m._id} onClick={() => navigate(`/room/${m.meetingCode}`)} className="group p-6 rounded-3xl bg-gray-50/50 dark:bg-gray-900/40 hover:bg-white dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 cursor-pointer flex items-center justify-between transition-all duration-300 hover:shadow-xl hover:shadow-gray-200/20 dark:hover:shadow-black/20">
-                                        <div className="flex items-center gap-5">
-                                            <div className="w-14 h-14 rounded-2xl bg-blue-100/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center transition-transform">
-                                                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                                            </div>
-                                            <div>
-                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-1">{m.title}</h3>
-                                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{new Date(m.createdAt).toLocaleDateString()} <span className="mx-2 opacity-30">•</span> ID: {m.meetingCode}</p>
-                                            </div>
-                                        </div>
-                                        <div className="w-10 h-10 rounded-full bg-white dark:bg-gray-700 shadow-md flex items-center justify-center text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-20 px-4 rounded-3xl bg-gray-50/50 dark:bg-gray-900/40 border-2 border-dashed border-gray-200 dark:border-gray-800">
-                                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                </div>
-                                <p className="text-base font-bold text-gray-500 dark:text-gray-400">
-                                    {lang === 'uz' ? 'Hali uchrashuvlar mavjud emas.' : lang === 'ru' ? 'Нет недавних встреч.' : 'No recent meetings yet.'}
-                                </p>
-                            </div>
-                        )}
+                        <button onClick={() => onNav('history')} className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                            {lang === 'uz' ? 'Barchasi →' : lang === 'ru' ? 'Все →' : 'View all →'}
+                        </button>
                     </div>
 
-                    {/* Right: Personal Info snippet or tip */}
-                    <div className="lg:col-span-1 gradient-purple rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-[-10%] right-[-10%] w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none transition-transform duration-700" />
-                        <div className="relative z-10 flex flex-col h-full">
-                            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-8 backdrop-blur-md shadow-lg border border-white/20">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                    {recentThree.length > 0 ? (
+                        <div className="divide-y divide-gray-50 dark:divide-white/5">
+                            {recentThree.map(m => {
+                                const d = new Date(m.createdAt);
+                                const isToday = d >= startOfDay;
+                                const timeStr = isToday
+                                    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                    : d.toLocaleDateString(lang === 'uz' ? 'uz-UZ' : lang === 'ru' ? 'ru-RU' : 'en-US', { month: 'short', day: 'numeric' });
+                                return (
+                                    <div key={m._id} onClick={() => navigate(`/room/${m.meetingCode}`)}
+                                        className="group flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-white/4 cursor-pointer transition-colors">
+                                        <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-sm text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{m.title}</p>
+                                            <p className="text-xs text-gray-400 mt-0.5 font-mono">{m.meetingCode}</p>
+                                        </div>
+                                        <span className="shrink-0 text-xs text-gray-400 font-medium">{timeStr}</span>
+                                        <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                            <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-white/8 flex items-center justify-center mb-4">
+                                <svg className="w-7 h-7 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                             </div>
-                            <h3 className="text-3xl font-black mb-4 tracking-tight leading-tight">{APP_NAME} Pro</h3>
-                            <p className="text-white/80 text-lg font-medium mb-10 leading-relaxed">
-                                {lang === 'uz' ? 'Cheksiz vaqt va yuqori sifat uchun Pro tarifiga o\'ting.' : lang === 'ru' ? 'Перейдите на Pro для неограниченного времени и высокого качества.' : 'Upgrade to Pro for unlimited time and high quality video.'}
+                            <p className="text-sm font-semibold text-gray-400 dark:text-gray-500">
+                                {lang === 'uz' ? 'Hali uchrashuvlar yo\'q' : lang === 'ru' ? 'Встреч пока нет' : 'No meetings yet'}
                             </p>
-                            <button className="mt-auto w-full py-5 bg-white text-purple-600 rounded-2xl font-black text-base hover:bg-gray-50 transition-all shadow-xl active:scale-95">
+                            <button onClick={() => setShowNewMeeting(true)} className="mt-4 px-4 py-2 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                                {lang === 'uz' ? '+ Yangi uchrashuv' : lang === 'ru' ? '+ Новая встреча' : '+ New Meeting'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Right sidebar — 1/3 */}
+                <div className="flex flex-col gap-4">
+                    {/* Pro Upgrade card */}
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 p-6 text-white shadow-lg">
+                        <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="relative z-10">
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-sm">
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                            </div>
+                            <h3 className="text-lg font-black mb-1 tracking-tight">{APP_NAME} Pro</h3>
+                            <p className="text-white/70 text-sm mb-5 leading-relaxed">
+                                {lang === 'uz' ? 'Cheksiz vaqt va yuqori sifat.' : lang === 'ru' ? 'Неограниченное время и высокое качество.' : 'Unlimited meetings & HD video.'}
+                            </p>
+                            <button className="w-full py-2.5 bg-white text-violet-700 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all active:scale-95">
                                 {lang === 'uz' ? 'Batafsil' : lang === 'ru' ? 'Подробнее' : 'Learn More'}
                             </button>
                         </div>
                     </div>
-                </div>
 
+                    {/* Quick tips */}
+                    <div className="bg-white dark:bg-[#161b22] rounded-2xl p-5">
+                        <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">
+                            {lang === 'uz' ? 'Tezkor harakatlar' : lang === 'ru' ? 'Быстрые действия' : 'Quick Actions'}
+                        </h3>
+                        <div className="space-y-1.5">
+                            {[
+                                { label: lang === 'uz' ? 'Profilni ko\'rish' : lang === 'ru' ? 'Мой профиль' : 'View profile', nav: 'profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+                                { label: lang === 'uz' ? 'Uchrashuvlar tarixi' : lang === 'ru' ? 'История встреч' : 'Meeting history', nav: 'history', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+                                { label: lang === 'uz' ? 'Rejalashtirish' : lang === 'ru' ? 'Запланировать' : 'Schedule meeting', nav: 'schedule', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+                            ].map(item => (
+                                <button key={item.nav} onClick={() => onNav(item.nav)}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-left group">
+                                    <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon} /></svg>
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -1141,7 +1209,21 @@ const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
     const [editTitle, setEditTitle] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFilter, setDateFilter] = useState('');
+    const [creating, setCreating] = useState(false);
     const navigate = useNavigate();
+    const toast = useToast();
+
+    const handleCreateMeeting = async () => {
+        setCreating(true);
+        try {
+            const { data } = await API.post('/api/meetings', { roomType: 'public' });
+            navigate(`/room/${data.meetingCode}`);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create');
+        } finally {
+            setCreating(false);
+        }
+    };
 
     const handleEditClick = (e, m) => {
         e.stopPropagation();
@@ -1168,9 +1250,21 @@ const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
     return (
         <div className="flex-1 overflow-y-auto px-4 py-8 sm:py-10 bg-gray-50 dark:bg-gray-900/50">
             <div className="w-full max-w-4xl mx-auto">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                    {lang === 'uz' ? 'Uchrashuvlarim' : lang === 'ru' ? 'Мои встречи' : 'My Meetings'}
-                </h2>
+                <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {lang === 'uz' ? 'Uchrashuvlarim' : lang === 'ru' ? 'Мои встречи' : 'My Meetings'}
+                    </h2>
+                    <button
+                        onClick={handleCreateMeeting}
+                        disabled={creating}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-600/25 disabled:opacity-60 transition-colors"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                        {creating
+                            ? (lang === 'uz' ? 'Yaratilmoqda...' : lang === 'ru' ? 'Создание...' : 'Creating...')
+                            : (lang === 'uz' ? 'Yangi uchrashuv' : lang === 'ru' ? 'Новая встреча' : 'New Meeting')}
+                    </button>
+                </div>
                 <div className="mb-6 grid gap-3 md:grid-cols-[1fr_220px]">
                     <input
                         type="text"
@@ -1241,9 +1335,14 @@ const HistoryView = ({ t, lang, history, onDelete, onUpdate }) => {
                         <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
                             <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         </div>
-                        <p className="text-base font-medium text-gray-500 dark:text-gray-400">
+                        <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-5">
                             {lang === 'uz' ? 'Hali uchrashuvlar mavjud emas' : lang === 'ru' ? 'Нет встреч' : 'No meetings found'}
                         </p>
+                        <button onClick={handleCreateMeeting} disabled={creating}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-600/25 disabled:opacity-60 transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                            {lang === 'uz' ? 'Yangi uchrashuv' : lang === 'ru' ? 'Новая встреча' : 'New Meeting'}
+                        </button>
                     </div>
                 )}
             </div>
@@ -1260,6 +1359,24 @@ const Dashboard = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+    const profileMenuRef = React.useRef(null);
+
+    useEffect(() => {
+        if (!profileMenuOpen) return;
+        const onDocClick = (e) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+                setProfileMenuOpen(false);
+            }
+        };
+        const onEsc = (e) => { if (e.key === 'Escape') setProfileMenuOpen(false); };
+        document.addEventListener('mousedown', onDocClick);
+        document.addEventListener('keydown', onEsc);
+        return () => {
+            document.removeEventListener('mousedown', onDocClick);
+            document.removeEventListener('keydown', onEsc);
+        };
+    }, [profileMenuOpen]);
     const navigate = useNavigate();
     const { user: userInfo } = useAuth();
     const { t, lang, theme, toggleTheme, changeLanguage } = useContext(ThemeLanguageContext);
@@ -1409,40 +1526,46 @@ const Dashboard = () => {
 
                     {/* Profile dropdown */}
                     {userInfo ? (
-                        <div className="relative group ml-0.5">
-                            <button className="flex items-center gap-2 px-1.5 py-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <div className="relative ml-0.5" ref={profileMenuRef}>
+                            <button
+                                onClick={() => setProfileMenuOpen(v => !v)}
+                                aria-haspopup="menu"
+                                aria-expanded={profileMenuOpen}
+                                className={`flex items-center gap-2 px-1.5 py-1 rounded-xl transition-colors ${profileMenuOpen ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                            >
                                 <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-full flex items-center justify-center text-[11px] font-bold shrink-0">
                                     {userInfo?.name?.[0]?.toUpperCase()}
                                 </div>
-                                <svg className="w-3 h-3 text-gray-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                <svg className={`w-3 h-3 text-gray-400 hidden sm:block transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
                             </button>
-                            <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all duration-200 translate-y-1 group-hover:translate-y-0">
-                                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
-                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{userInfo?.name}</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{userInfo?.email}</p>
-                                </div>
-                                <button onClick={() => setView('profile')} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                                    {lang === 'uz' ? 'Profil' : lang === 'ru' ? 'Профиль' : 'Profile'}
-                                </button>
-                                {isAdmin && (
-                                    <button onClick={() => navigate('/admin')} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        Admin Panel
+                            {profileMenuOpen && (
+                                <div role="menu" className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden z-50">
+                                    <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{userInfo?.name}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{userInfo?.email}</p>
+                                    </div>
+                                    <button onClick={() => { setProfileMenuOpen(false); setView('profile'); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                        {lang === 'uz' ? 'Profil' : lang === 'ru' ? 'Профиль' : 'Profile'}
                                     </button>
-                                )}
-                                {/* Mobile-only toggles */}
-                                <div className="sm:hidden flex items-center justify-between px-4 py-2 border-t border-gray-100 dark:border-gray-800">
-                                    <LanguageToggle compact />
-                                    <ThemeToggle compact />
+                                    {isAdmin && (
+                                        <button onClick={() => { setProfileMenuOpen(false); navigate('/admin'); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" /></svg>
+                                            Admin Panel
+                                        </button>
+                                    )}
+                                    <div className="sm:hidden flex items-center justify-between px-4 py-2 border-t border-gray-100 dark:border-gray-800">
+                                        <LanguageToggle compact />
+                                        <ThemeToggle compact />
+                                    </div>
+                                    <div className="border-t border-gray-100 dark:border-gray-800">
+                                        <button onClick={() => { setProfileMenuOpen(false); handleLogout(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                                            {t('sign_out')}
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="border-t border-gray-100 dark:border-gray-800">
-                                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                                        {t('sign_out')}
-                                    </button>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     ) : (
                         <div className="flex items-center gap-2 ml-1">

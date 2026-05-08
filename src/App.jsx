@@ -37,6 +37,7 @@ function AppRoutes() {
             <Route path="/admin" element={
                 user?.role === 'admin' ? <AdminPage /> : <Navigate to="/" replace />
             } />
+            <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     )
 }

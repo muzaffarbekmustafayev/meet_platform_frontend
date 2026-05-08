@@ -7,25 +7,50 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Config
-node_modules
-dist
-dist-ssr
+# Dependency directories
+node_modules/
+dist/
+dist-ssr/
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+.history/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
+# Vercel
+.vercel
+
+# Vite
+.vite/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
 # Environment variables
 .env
 .env.test
 .env.production
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Testing
+/coverage
+/.nyc_output
+
+# Build artifacts
+build/
+out/

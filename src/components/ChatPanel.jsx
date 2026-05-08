@@ -1,5 +1,6 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useContext } from 'react';
 import { Paperclip, Send, X, Pencil, Trash2, CheckCheck, MessageSquare, FileText } from 'lucide-react';
+import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
 
 // ── Avatar color from username hash ────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -53,6 +54,7 @@ const Avatar = ({ name, size = 'sm' }) => {
 
 // ── Message Bubble ─────────────────────────────────────────────────────────────
 const MessageBubble = ({ msg, isOwn, prevMsg, onEdit, onDelete, canAct }) => {
+    const { t } = useContext(ThemeLanguageContext);
     const [hovered, setHovered] = useState(false);
 
     // Show avatar only when sender changes (group messages)
@@ -91,14 +93,14 @@ const MessageBubble = ({ msg, isOwn, prevMsg, onEdit, onDelete, canAct }) => {
                         <button
                             onClick={() => onEdit(msg._id, msg.text)}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
-                            title="Tahrirlash"
+                            title={t('chat_edit')}
                         >
                             <Pencil size={12} />
                         </button>
                         <button
                             onClick={() => onDelete(msg._id)}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                            title="O'chirish"
+                            title={t('chat_delete')}
                         >
                             <Trash2 size={12} />
                         </button>
@@ -130,7 +132,7 @@ const MessageBubble = ({ msg, isOwn, prevMsg, onEdit, onDelete, canAct }) => {
                                     className={`text-[10px] font-medium underline underline-offset-2 transition-colors
                                         ${isOwn ? 'text-blue-200 hover:text-white' : 'text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'}`}
                                 >
-                                    Yuklab olish
+                                    {t('chat_download')}
                                 </a>
                             </div>
                         </div>
@@ -159,6 +161,7 @@ const ChatPanel = ({
     deleteChatMessage, startEditingMessage, onClose,
     roomUsers, currentUserName, canChat, meetingTitle,
 }) => {
+    const { t } = useContext(ThemeLanguageContext);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const bodyRef = useRef(null);
@@ -166,7 +169,7 @@ const ChatPanel = ({
 
     // Group with date labels
     const groupedMessages = messages.reduce((acc, msg, idx) => {
-        if (idx === 0) acc.push({ type: 'date', label: 'Bugun' });
+        if (idx === 0) acc.push({ type: 'date', label: t('chat_today') });
         acc.push({ type: 'msg', ...msg });
         return acc;
     }, []);
@@ -190,28 +193,17 @@ const ChatPanel = ({
     const onlineCount = roomUsers?.length ?? 0;
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 dark:bg-[#0e1016] select-text transition-colors duration-200">
+        <div className="flex flex-col h-full bg-[#0d0f15] text-gray-100 select-text">
 
-            {/* ── Header ── */}
-            <div className="shrink-0 bg-white dark:bg-[#13161e] border-b border-gray-100 dark:border-white/6 px-3 py-3 sm:px-4 sm:py-3.5 flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-50 dark:bg-blue-500/12 border border-blue-100 dark:border-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
-                    <MessageSquare size={15} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <p className="text-gray-900 dark:text-white font-semibold text-sm leading-tight truncate">
-                        Uchrashuv chati
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        <p className="text-gray-400 dark:text-gray-500 text-[10px] font-medium">
-                            {onlineCount} ishtirokchi online
-                        </p>
-                    </div>
-                </div>
+            {/* ── Header — Zoom style ── */}
+            <div className="shrink-0 flex items-center justify-between px-4 h-14 border-b border-white/6">
+                <h2 className="text-sm font-semibold text-white">
+                    {t('ctl_chat')} <span className="text-gray-500 font-medium">({onlineCount})</span>
+                </h2>
                 <button
                     onClick={onClose}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8 transition-colors shrink-0"
-                    title="Yopish"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/8 transition-colors"
+                    title={t('chat_close')}
                 >
                     <X size={16} />
                 </button>
@@ -225,12 +217,12 @@ const ChatPanel = ({
             >
                 {groupedMessages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
-                        <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/8 flex items-center justify-center mb-4">
-                            <MessageSquare size={24} className="text-gray-300 dark:text-gray-600" />
+                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-4">
+                            <MessageSquare size={24} className="text-gray-600" />
                         </div>
-                        <p className="text-gray-600 dark:text-gray-400 text-sm font-semibold">Hali xabar yo'q</p>
-                        <p className="text-gray-400 dark:text-gray-600 text-xs mt-1.5 leading-relaxed max-w-[180px]">
-                            Jamoangiz bilan muloqotni boshlang!
+                        <p className="text-gray-400 text-sm font-semibold">{t('chat_empty_title')}</p>
+                        <p className="text-gray-600 text-xs mt-1.5 leading-relaxed max-w-[180px]">
+                            {t('chat_empty_sub')}
                         </p>
                     </div>
                 ) : (
@@ -280,7 +272,7 @@ const ChatPanel = ({
                         {/* File attach */}
                         <label
                             className="p-2 rounded-xl text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors cursor-pointer shrink-0"
-                            title="Fayl biriktirish"
+                            title={t('chat_attach')}
                         >
                             <input type="file" className="hidden" onChange={handleFileUpload} />
                             <Paperclip size={17} />
@@ -293,14 +285,14 @@ const ChatPanel = ({
                                 type="text"
                                 value={newMessage}
                                 onChange={(e) => setNewMessage(e.target.value)}
-                                placeholder={editingMessageId ? 'Xabarni tahrirlang...' : 'Xabar yozing...'}
-                                className={`w-full bg-gray-100 dark:bg-white/6 text-gray-900 dark:text-gray-100
-                                    placeholder-gray-400 dark:placeholder-gray-600
-                                    rounded-xl px-4 py-2.5 text-sm border transition-all duration-150
+                                placeholder={editingMessageId ? t('chat_input_edit_placeholder') : t('chat_input_placeholder')}
+                                style={{ color: '#f1f5f9', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                                className={`w-full rounded-xl px-4 py-2.5 text-sm border transition-all duration-150
+                                    placeholder:text-gray-500
                                     focus:outline-none focus:ring-2
                                     ${editingMessageId
-                                        ? 'border-amber-300 dark:border-amber-500/40 focus:ring-amber-400/25 focus:border-amber-400 dark:focus:border-amber-500/60'
-                                        : 'border-gray-200 dark:border-white/6 focus:ring-blue-500/20 focus:border-blue-400 dark:focus:border-blue-500/40'
+                                        ? 'border-amber-500/40 focus:ring-amber-400/25 focus:border-amber-500/60'
+                                        : 'border-white/8 focus:ring-blue-500/25 focus:border-blue-500/50'
                                     }`}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) { sendMessage(e); }
@@ -312,7 +304,7 @@ const ChatPanel = ({
                         <button
                             type="submit"
                             disabled={!newMessage.trim()}
-                            title="Yuborish (Enter)"
+                            title={t('chat_send')}
                             className={`p-2.5 rounded-xl shrink-0 transition-all duration-150 active:scale-95
                                 ${newMessage.trim()
                                     ? editingMessageId
@@ -338,7 +330,7 @@ const ChatPanel = ({
                 {/* Hint */}
                 {canChat && !editingMessageId && (
                     <p className="text-center text-[10px] text-gray-300 dark:text-gray-700 mt-1.5 select-none">
-                        Enter — yuborish
+                        {t('chat_send_hint')}
                     </p>
                 )}
             </div>
