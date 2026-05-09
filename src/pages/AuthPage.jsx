@@ -231,6 +231,57 @@ const AuthPage = () => {
         }
     };
 
+    const handleGoogleLogin = async (token) => {
+        setLoading(true);
+        setError('');
+        try {
+            const { data } = await API.post('/api/users/google-auth', { token });
+            login(data);
+            navigate(data.role === 'admin' ? '/admin' : '/dashboard', { replace: true });
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Google login failed';
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Load Google Identity Services script
+    useEffect(() => {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.onload = () => {
+            if (window.google) {
+                window.google.accounts.id.initialize({
+                    client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || 'demo-client-id.apps.googleusercontent.com',
+                    callback: (response) => {
+                        if (response.credential) {
+                            handleGoogleLogin(response.credential);
+                        }
+                    }
+                });
+                // Render Google Sign-In button
+                const buttonElement = document.getElementById('google-signin-button');
+                if (buttonElement) {
+                    window.google.accounts.id.renderButton(buttonElement, {
+                        type: 'standard',
+                        size: 'large',
+                        theme: document.documentElement.classList.contains('dark') ? 'outline' : 'filled_blue',
+                        width: '100%',
+                        locale: lang === 'uz' ? 'en' : lang // Google doesn't support Uzbek
+                    });
+                }
+            }
+        };
+        document.body.appendChild(script);
+        return () => {
+            if (document.body.contains(script)) {
+                document.body.removeChild(script);
+            }
+        };
+    }, [lang]);
+
     const inputCls = "w-full pl-11 pr-4 py-3.5 bg-gray-50 dark:bg-[#0d1117] rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm";
 
     return (
@@ -366,10 +417,7 @@ const AuthPage = () => {
 
                         {/* Social */}
                         <div className="grid grid-cols-2 gap-3">
-                            <button type="button" onClick={() => toast.info('Google OAuth not configured.')}
-                                className="flex items-center justify-center gap-2 py-3 bg-white dark:bg-[#161b22] hover:bg-gray-100 dark:hover:bg-[#1c222d] rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 transition-colors">
-                                <GoogleIcon /> {l.google}
-                            </button>
+                            <div id="google-signin-button" className="rounded-xl overflow-hidden flex items-center justify-center bg-white dark:bg-[#161b22]" style={{ minHeight: '44px' }} />
                             <button type="button" onClick={() => setGuestOpen(true)}
                                 className="py-3 bg-white dark:bg-[#161b22] hover:bg-gray-100 dark:hover:bg-[#1c222d] rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 transition-colors">
                                 {l.guest}

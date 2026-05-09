@@ -53,11 +53,103 @@ const ScheduleView = ({ t, lang }) => {
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
     const [duration, setDuration] = useState('30');
-    const [done, setDone] = useState(false);
+    const [roomType, setRoomType] = useState('public');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [done, setDone] = useState(null); // { code, title }
     const today = new Date().toISOString().split('T')[0];
+    const navigate = useNavigate();
+    const toast = useToast();
+
     const inp = 'w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-gray-700 transition-all';
 
-    const handleSubmit = (e) => { e.preventDefault(); setDone(true); setTimeout(() => setDone(false), 3000); };
+    const generatePin = () => {
+        const arr = new Uint32Array(1);
+        crypto.getRandomValues(arr);
+        setPassword(String(arr[0] % 1000000).padStart(6, '0'));
+    };
+
+    const copyPassword = () => {
+        navigator.clipboard.writeText(password).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
+    const isPasswordValid = roomType === 'private' ? password.length >= 6 : true;
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (roomType === 'private' && password.length < 6) {
+            toast.error(lang === 'uz' ? 'Kamida 6 xonali parol kiriting' : lang === 'ru' ? 'Введите пароль минимум 6 цифр' : 'Enter at least 6-digit password');
+            return;
+        }
+        setLoading(true);
+        try {
+            const { data } = await API.post('/api/meetings', {
+                title: topic || undefined,
+                roomType,
+                password: roomType === 'private' ? password : undefined,
+            });
+            setDone({ code: data.meetingCode, title: data.title });
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('action_failed'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const reset = () => { setTopic(''); setDate(''); setTime(''); setDuration('30'); setRoomType('public'); setPassword(''); setDone(null); };
+
+    // ── Success screen ──────────────────────────────────────────────────────────
+    if (done) return (
+        <div className="flex-1 overflow-y-auto px-4 py-8 sm:py-10">
+            <div className="w-full max-w-lg mx-auto">
+                <div className="bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/60 rounded-2xl p-8 text-center shadow-sm">
+                    <div className="w-14 h-14 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-7 h-7 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                        {lang === 'uz' ? 'Rejalashtirildi!' : lang === 'ru' ? 'Запланировано!' : 'Scheduled!'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{done.title}</p>
+
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+                        <span className="text-sm font-mono text-gray-700 dark:text-gray-300">{done.code}</span>
+                        <button onClick={() => { navigator.clipboard.writeText(done.code); toast.success(t('pw_copied')); }}
+                            className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline">
+                            {lang === 'uz' ? 'Nusxa' : lang === 'ru' ? 'Копировать' : 'Copy'}
+                        </button>
+                    </div>
+
+                    {roomType === 'private' && (
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl px-4 py-3 mb-6 flex items-center justify-between">
+                            <div className="text-left">
+                                <p className="text-xs text-purple-500 font-semibold mb-0.5">{lang === 'uz' ? 'Xona paroli' : lang === 'ru' ? 'Пароль комнаты' : 'Room password'}</p>
+                                <p className="text-lg font-mono font-bold text-purple-700 dark:text-purple-300 tracking-widest">{password}</p>
+                            </div>
+                            <button onClick={() => { navigator.clipboard.writeText(password); toast.success(t('pw_copied')); }}
+                                className="text-xs text-purple-600 dark:text-purple-400 font-semibold hover:underline">
+                                {lang === 'uz' ? 'Nusxa' : lang === 'ru' ? 'Копировать' : 'Copy'}
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3">
+                        <button onClick={reset} className="flex-1 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">
+                            {lang === 'uz' ? 'Yangi' : lang === 'ru' ? 'Новое' : 'New'}
+                        </button>
+                        <button onClick={() => navigate(`/room/${done.code}`)}
+                            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors">
+                            {lang === 'uz' ? 'Boshlash' : lang === 'ru' ? 'Начать' : 'Start Now'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="flex-1 overflow-y-auto px-4 py-8 sm:py-10">
@@ -66,29 +158,35 @@ const ScheduleView = ({ t, lang }) => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{t('schedule')}</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('plan_future')}</p>
                 </div>
-                {done && (
-                    <div className="mb-5 px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 font-medium">
-                        ✓ {lang === 'uz' ? 'Rejalashtirildi!' : lang === 'ru' ? 'Запланировано!' : 'Scheduled!'}
-                    </div>
-                )}
+
                 <form onSubmit={handleSubmit}>
                     <div className="bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/60 rounded-xl overflow-hidden divide-y divide-gray-100 dark:divide-gray-700/60">
+
                         {/* Topic */}
                         <div className="flex flex-col sm:grid sm:grid-cols-[140px_1fr] gap-2 sm:gap-4 items-start px-4 sm:px-6 py-4">
-                            <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">{lang === 'uz' ? 'Mavzu' : lang === 'ru' ? 'Тема' : 'Topic'}</label>
-                            <input type="text" placeholder={lang === 'uz' ? 'Mening uchrashuvm' : 'My Meeting'} value={topic} onChange={e => setTopic(e.target.value)} className={inp} />
+                            <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">
+                                {lang === 'uz' ? 'Mavzu' : lang === 'ru' ? 'Тема' : 'Topic'}
+                            </label>
+                            <input type="text" placeholder={lang === 'uz' ? 'Mening uchrashuvm' : lang === 'ru' ? 'Моя встреча' : 'My Meeting'}
+                                value={topic} onChange={e => setTopic(e.target.value)} className={inp} />
                         </div>
+
                         {/* When */}
                         <div className="flex flex-col sm:grid sm:grid-cols-[140px_1fr] gap-2 sm:gap-4 items-start px-4 sm:px-6 py-4">
-                            <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">{lang === 'uz' ? 'Qachon' : lang === 'ru' ? 'Когда' : 'When'}</label>
+                            <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">
+                                {lang === 'uz' ? 'Qachon' : lang === 'ru' ? 'Когда' : 'When'}
+                            </label>
                             <div className="flex flex-col xs:flex-row gap-2 w-full">
                                 <input type="date" min={today} value={date} onChange={e => setDate(e.target.value)} className={`${inp} flex-1 min-w-0`} />
                                 <input type="time" value={time} onChange={e => setTime(e.target.value)} className={`${inp} xs:w-28 shrink-0`} />
                             </div>
                         </div>
+
                         {/* Duration */}
                         <div className="flex flex-col sm:grid sm:grid-cols-[140px_1fr] gap-2 sm:gap-4 items-start px-4 sm:px-6 py-4">
-                            <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">{lang === 'uz' ? 'Davomiyligi' : lang === 'ru' ? 'Длительность' : 'Duration'}</label>
+                            <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">
+                                {lang === 'uz' ? 'Davomiyligi' : lang === 'ru' ? 'Длительность' : 'Duration'}
+                            </label>
                             <div className="w-full">
                                 <Select
                                     value={duration}
@@ -107,13 +205,89 @@ const ScheduleView = ({ t, lang }) => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Room Type */}
+                        <div className="flex flex-col sm:grid sm:grid-cols-[140px_1fr] gap-2 sm:gap-4 items-start px-4 sm:px-6 py-4">
+                            <label className="text-sm font-medium text-gray-600 dark:text-gray-400 sm:pt-2">
+                                {lang === 'uz' ? 'Xona turi' : lang === 'ru' ? 'Тип комнаты' : 'Room type'}
+                            </label>
+                            <div className="grid grid-cols-2 gap-2 w-full">
+                                <button type="button" onClick={() => { setRoomType('public'); setPassword(''); }}
+                                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold border-2 transition-all ${roomType === 'public' ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-600 dark:text-blue-400' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-blue-300'}`}>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                    {lang === 'uz' ? 'Ommaviy' : lang === 'ru' ? 'Публичный' : 'Public'}
+                                </button>
+                                <button type="button" onClick={() => setRoomType('private')}
+                                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold border-2 transition-all ${roomType === 'private' ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-500 text-purple-600 dark:text-purple-400' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-purple-300'}`}>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                    {lang === 'uz' ? 'Shaxsiy' : lang === 'ru' ? 'Приватный' : 'Private'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Password — only private */}
+                        {roomType === 'private' && (
+                            <div className="flex flex-col sm:grid sm:grid-cols-[140px_1fr] gap-2 sm:gap-4 items-start px-4 sm:px-6 py-4 bg-purple-50/30 dark:bg-purple-900/10">
+                                <label className="text-sm font-medium text-purple-600 dark:text-purple-400 sm:pt-2">
+                                    {lang === 'uz' ? 'Parol *' : lang === 'ru' ? 'Пароль *' : 'Password *'}
+                                </label>
+                                <div className="w-full space-y-2">
+                                    {/* Input row */}
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                placeholder={lang === 'uz' ? '6 xonali raqam' : lang === 'ru' ? '6-значный код' : '6-digit code'}
+                                                value={password}
+                                                onChange={e => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                inputMode="numeric"
+                                                maxLength={6}
+                                                className={`${inp} pr-10 font-mono tracking-widest ${password.length > 0 && password.length < 6 ? 'border-red-400 focus:border-red-400' : password.length === 6 ? 'border-green-400 focus:border-green-400' : ''}`}
+                                            />
+                                            <button type="button" onClick={() => setShowPassword(v => !v)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                                {showPassword
+                                                    ? <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                                                    : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                }
+                                            </button>
+                                        </div>
+                                        {/* Copy */}
+                                        <button type="button" onClick={copyPassword} disabled={!password}
+                                            className="px-3 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 text-gray-600 dark:text-gray-300 rounded-lg transition-colors">
+                                            {copied
+                                                ? <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                            }
+                                        </button>
+                                        {/* Generate */}
+                                        <button type="button" onClick={generatePin}
+                                            className="px-3 py-2.5 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-lg transition-colors text-xs font-bold">
+                                            {lang === 'uz' ? 'Yaratish' : lang === 'ru' ? 'Создать' : 'Generate'}
+                                        </button>
+                                    </div>
+                                    {/* Status */}
+                                    {password.length > 0 && (
+                                        <p className={`text-xs font-medium ${password.length < 6 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+                                            {password.length < 6
+                                                ? `${password.length}/6 — ${lang === 'uz' ? 'kamida 6 ta raqam' : lang === 'ru' ? 'минимум 6 цифр' : 'at least 6 digits'}`
+                                                : `✓ ${lang === 'uz' ? 'Parol tayyor' : lang === 'ru' ? 'Пароль готов' : 'Password ready'}`
+                                            }
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
+
                     <div className="mt-5 flex justify-end gap-3">
-                        <button type="button" onClick={() => { setTopic(''); setDate(''); setTime(''); setDuration('30'); }}
+                        <button type="button" onClick={reset}
                             className="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                             {lang === 'uz' ? 'Bekor qilish' : lang === 'ru' ? 'Отмена' : 'Cancel'}
                         </button>
-                        <button type="submit" className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm">
+                        <button type="submit" disabled={loading || !isPasswordValid}
+                            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-all shadow-sm flex items-center gap-2">
+                            {loading && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                             {lang === 'uz' ? 'Rejalashtirish' : lang === 'ru' ? 'Запланировать' : 'Schedule'}
                         </button>
                     </div>
@@ -190,12 +364,12 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
         return () => clearInterval(id);
     }, []);
 
-    // Generate cryptographically random password
+    // Generate cryptographically random 6-digit numeric PIN
     const generatePassword = () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-        const arr = new Uint8Array(10);
+        const arr = new Uint32Array(1);
         crypto.getRandomValues(arr);
-        setRoomPassword(Array.from(arr).map(b => chars[b % chars.length]).join(''));
+        const pin = String(arr[0] % 1000000).padStart(6, '0');
+        setRoomPassword(pin);
     };
 
     // Stats helpers
@@ -215,18 +389,25 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
 
     // Get password strength
     const getPasswordStrength = () => {
-        if (!roomPassword) return { level: 0, text: '', color: 'gray' };
+        if (!roomPassword) return { level: 0, text: '', color: 'gray', valid: false };
+        if (roomPassword.length < 6) return { level: 0, text: t('pw_min_6_chars'), color: 'red', valid: false };
+
+        // Pure numeric PIN (6 digits) — always valid
+        if (/^\d+$/.test(roomPassword) && roomPassword.length === 6) {
+            return { level: 3, text: t('pw_good'), color: 'blue', valid: true };
+        }
+
         let strength = 0;
         if (roomPassword.length >= 6) strength++;
         if (roomPassword.length >= 10) strength++;
         if (/[a-z]/.test(roomPassword) && /[A-Z]/.test(roomPassword)) strength++;
         if (/\d/.test(roomPassword)) strength++;
         if (/[!@#$%^&*]/.test(roomPassword)) strength++;
-        
-        if (strength <= 1) return { level: 1, text: t('pw_weak'), color: 'red' };
-        if (strength <= 2) return { level: 2, text: t('pw_fair'), color: 'yellow' };
-        if (strength <= 3) return { level: 3, text: t('pw_good'), color: 'blue' };
-        return { level: 4, text: t('pw_strong'), color: 'green' };
+
+        if (strength <= 1) return { level: 1, text: t('pw_weak'), color: 'red', valid: false };
+        if (strength <= 2) return { level: 2, text: t('pw_fair'), color: 'yellow', valid: true };
+        if (strength <= 3) return { level: 3, text: t('pw_good'), color: 'blue', valid: true };
+        return { level: 4, text: t('pw_strong'), color: 'green', valid: true };
     };
 
     const passwordStrength = getPasswordStrength();
@@ -238,6 +419,10 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
         }
         if (roomType === 'public' && roomPassword.trim()) {
             toast.error(t('pw_not_allowed_public'));
+            return;
+        }
+        if (roomType === 'private' && !passwordStrength.valid) {
+            toast.error(t('pw_too_weak'));
             return;
         }
         setLoading(true);
@@ -428,8 +613,8 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                                     </div>
                                 </button>
                                 <button
-                                    onClick={() => setComingSoon({ show: true, name: lang === 'uz' ? 'Shaxsiy xonalar' : 'Private Rooms' })}
-                                    className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 ${roomType === 'private' 
+                                    onClick={() => setRoomType('private')}
+                                    className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 ${roomType === 'private'
                                         ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-500 text-purple-600 dark:text-purple-400' 
                                         : 'bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-purple-300'
                                     }`}
@@ -456,10 +641,12 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                                         <div className="flex gap-2 items-center">
                                             <input
                                                 type={showPassword ? 'text' : 'password'}
-                                                placeholder={lang === 'uz' ? 'Parolni kiriting yoki yarating' : lang === 'ru' ? 'Введите или создайте пароль' : 'Enter or generate password'}
+                                                placeholder={lang === 'uz' ? '6 xonali raqam' : lang === 'ru' ? '6-значный код' : '6-digit code'}
                                                 value={roomPassword}
-                                                onChange={e => setRoomPassword(e.target.value)}
-                                                className="flex-1 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/50 rounded-2xl px-6 py-4 text-base font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all shadow-inner"
+                                                onChange={e => setRoomPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                inputMode="numeric"
+                                                maxLength={6}
+                                                className="flex-1 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/50 rounded-2xl px-6 py-4 text-base font-mono tracking-widest text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all shadow-inner"
                                             />
                                             
                                             {/* Show/Hide Toggle */}
@@ -564,7 +751,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                                     className="px-8 py-4 text-sm font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-2xl transition-all flex-1 active:scale-95">
                                     {lang === 'uz' ? 'Bekor' : lang === 'ru' ? 'Отмена' : 'Cancel'}
                                 </button>
-                                <button onClick={handleCreateRoom} disabled={loading || (roomType === 'private' && !roomPassword.trim())}
+                                <button onClick={handleCreateRoom} disabled={loading || (roomType === 'private' && (!roomPassword.trim() || !passwordStrength.valid))}
                                     className="px-10 py-4 gradient-blue text-white text-sm font-black rounded-2xl transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex-1 active:scale-95">
                                     {loading ? t('starting') : t('start_meeting')}
                                 </button>

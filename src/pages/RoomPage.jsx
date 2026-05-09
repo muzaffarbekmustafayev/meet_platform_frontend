@@ -68,6 +68,9 @@ const RoomPage = () => {
     const [audioDevices, setAudioDevices] = useState([]);
     const [selectedAudioDevice, setSelectedAudioDevice] = useState('');
     const [showSettings, setShowSettings] = useState(false);
+    const [changePwOld, setChangePwOld] = useState('');
+    const [changePwNew, setChangePwNew] = useState('');
+    const [changePwLoading, setChangePwLoading] = useState(false);
     const [shareRequests, setShareRequests] = useState([]); // For Host/Co-host
     const [isShareApproved, setIsShareApproved] = useState(false); // For Participants
     const [requestPending, setRequestPending] = useState(false);
@@ -80,6 +83,10 @@ const RoomPage = () => {
     const [waitingRoomDenied, setWaitingRoomDenied] = useState(false);
     const [passwordRequired, setPasswordRequired] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordLoading, setPasswordLoading] = useState(false);
+    const [passwordAttempts, setPasswordAttempts] = useState(0);
+    const [passwordShowText, setPasswordShowText] = useState(false);
     const [accessDenied, setAccessDenied] = useState(false);
     const [waitingBadge, setWaitingBadge] = useState(0);
     const [waitingToasts, setWaitingToasts] = useState([]);
@@ -390,7 +397,7 @@ const RoomPage = () => {
                 const emptyStream = new MediaStream();
                 setStream(emptyStream);
                 streamRef.current = emptyStream;
-                socket.emit('join-room', roomID, userInfo._id, userInfo.name, true);
+                socket.emit('join-room', roomID, userInfo._id, userInfo.name, true, passwordInput);
                 return;
             }
 
@@ -421,7 +428,7 @@ const RoomPage = () => {
                 streamRef.current = currentStream;
                 if (userVideo.current) userVideo.current.srcObject = currentStream;
 
-                socket.emit('join-room', roomID, userInfo._id, userInfo.name, false);
+                socket.emit('join-room', roomID, userInfo._id, userInfo.name, false, passwordInput);
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const videoIn = devices.filter(device => device.kind === 'videoinput');
@@ -453,7 +460,7 @@ const RoomPage = () => {
                 streamRef.current = emptyStream;
                 setIsMuted(true);
                 setIsVideoOff(true);
-                socket.emit('join-room', roomID, userInfo._id, userInfo.name, isGuest);
+                socket.emit('join-room', roomID, userInfo._id, userInfo.name, isGuest, passwordInput);
             }
         };
         initMedia();
@@ -1037,63 +1044,114 @@ const RoomPage = () => {
 
     // Password Modal for Private Rooms
     if (passwordRequired) {
+        const handlePasswordSubmit = async (e) => {
+            e.preventDefault();
+            if (!passwordInput.trim()) return;
+            setPasswordLoading(true);
+            setPasswordError('');
+            try {
+                const { data } = await API.get(`/api/meetings/${roomID}`, { params: { password: passwordInput } });
+                setMeeting(data);
+                setPasswordRequired(false);
+                setPasswordAttempts(0);
+            } catch (error) {
+                const newAttempts = passwordAttempts + 1;
+                setPasswordAttempts(newAttempts);
+                if (error.response?.status === 429) {
+                    const retryAfter = error.response?.data?.retryAfter || 300;
+                    setPasswordError(lang === 'uz'
+                        ? `Juda ko'p urinish. ${Math.ceil(retryAfter / 60)} daqiqadan so'ng qayta urinib ko'ring.`
+                        : lang === 'ru'
+                            ? `Слишком много попыток. Попробуйте через ${Math.ceil(retryAfter / 60)} мин.`
+                            : `Too many attempts. Try again in ${Math.ceil(retryAfter / 60)} minutes.`);
+                } else if (error.response?.status === 403 && error.response?.data?.requiresPassword) {
+                    setPasswordError(lang === 'uz' ? 'Parol kiritilishi shart.' : lang === 'ru' ? 'Требуется пароль.' : 'Password required.');
+                } else if (error.response?.status === 403) {
+                    const remaining = Math.max(0, 5 - newAttempts);
+                    setPasswordError(
+                        (lang === 'uz' ? `Parol noto'g'ri.` : lang === 'ru' ? 'Неверный пароль.' : 'Incorrect password.')
+                        + (remaining > 0 ? ` (${remaining} ${lang === 'uz' ? 'urinish qoldi' : lang === 'ru' ? 'попытки осталось' : 'attempts left'})` : '')
+                    );
+                } else {
+                    toast.error(t('meeting_not_found'));
+                    navigate('/');
+                }
+            } finally {
+                setPasswordLoading(false);
+            }
+        };
+
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-                <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-8 border border-gray-100 dark:border-gray-700">
-                    <div className="flex justify-center mb-6">
-                        <div className="w-14 h-14 bg-purple-100 dark:bg-purple-900/30 rounded-3xl flex items-center justify-center text-purple-600 dark:text-purple-400">
-                            <Lock className="w-7 h-7" />
+            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950 p-4">
+                <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-gradient-to-br from-purple-600 to-indigo-600 p-8 text-center">
+                        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <Lock className="w-8 h-8 text-white" />
                         </div>
+                        <h2 className="text-xl font-bold text-white">
+                            {lang === 'uz' ? 'Himoyalangan xona' : lang === 'ru' ? 'Защищённая комната' : 'Private Room'}
+                        </h2>
+                        <p className="text-purple-200 text-sm mt-1">
+                            {lang === 'uz' ? 'Kirish uchun parol talab qilinadi' : lang === 'ru' ? 'Требуется пароль для входа' : 'Password required to join'}
+                        </p>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-2">
-                        Himoyalangan Xona
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
-                        Bu xonaga kirish uchun parol talab qilinadi. Parolni kiriting.
-                    </p>
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        if (passwordInput.trim()) {
-                            const fetchMeeting = async (password = null) => {
-                                try {
-                                    const config = password ? { params: { password } } : {};
-                                    const { data } = await API.get(`/api/meetings/${roomID}`, config);
-                                    setMeeting(data);
-                                    setPasswordRequired(false);
-                                } catch (error) {
-                                    if (error.response?.status === 403 && error.response?.data?.requiresPassword) {
-                                        setPasswordRequired(true);
-                                    } else if (error.response?.status === 403) {
-                                        setAccessDenied(true);
-                                    } else {
-                                        toast.error(t('meeting_not_found'));
-                                        navigate('/');
-                                    }
+
+                    {/* Form */}
+                    <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+                        {/* Password field */}
+                        <div className="relative">
+                            <input
+                                type={passwordShowText ? 'text' : 'password'}
+                                placeholder={lang === 'uz' ? '6 xonali raqam' : lang === 'ru' ? '6-значный код' : '6-digit code'}
+                                value={passwordInput}
+                                onChange={(e) => { setPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 6)); setPasswordError(''); }}
+                                autoFocus
+                                autoComplete="current-password"
+                                inputMode="numeric"
+                                maxLength={6}
+                                className={`w-full px-4 py-3.5 pr-12 rounded-xl border text-base font-mono tracking-widest bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${passwordError ? 'border-red-400 focus:ring-red-400/30' : 'border-gray-200 dark:border-gray-700 focus:ring-purple-500/30 focus:border-purple-500'}`}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setPasswordShowText(v => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"
+                            >
+                                {passwordShowText
+                                    ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                                    : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                 }
-                            };
-                            fetchMeeting(passwordInput);
-                        }
-                    }} className="space-y-4">
-                        <input
-                            type="password"
-                            placeholder="Parolni kiriting"
-                            value={passwordInput}
-                            onChange={(e) => setPasswordInput(e.target.value)}
-                            autoFocus
-                            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        />
+                            </button>
+                        </div>
+
+                        {/* Error */}
+                        {passwordError && (
+                            <div className="flex items-start gap-2 px-3 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                                <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <p className="text-sm text-red-600 dark:text-red-400 font-medium">{passwordError}</p>
+                            </div>
+                        )}
+
+                        {/* Submit */}
                         <button
                             type="submit"
-                            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all"
+                            disabled={!passwordInput.trim() || passwordLoading}
+                            className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
                         >
-                            Kirish
+                            {passwordLoading
+                                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    {lang === 'uz' ? 'Tekshirilmoqda...' : lang === 'ru' ? 'Проверка...' : 'Checking...'}</>
+                                : <>{lang === 'uz' ? 'Kirish' : lang === 'ru' ? 'Войти' : 'Join Room'}</>
+                            }
                         </button>
+
+                        {/* Cancel */}
                         <button
                             type="button"
                             onClick={() => navigate('/')}
-                            className="w-full py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-bold rounded-xl transition-all hover:bg-gray-300 dark:hover:bg-gray-600"
+                            className="w-full py-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                         >
-                            Bekor qilish
+                            {lang === 'uz' ? '← Orqaga' : lang === 'ru' ? '← Назад' : '← Go back'}
                         </button>
                     </form>
                 </div>
@@ -1707,6 +1765,57 @@ const RoomPage = () => {
                                 />
                             </div>
                         </div>
+                        {/* Password change section — host only, private rooms */}
+                        {isHost && meeting?.roomType === 'private' && (
+                            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/10">
+                                <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                    <Lock size={14} className="text-purple-500" />
+                                    {lang === 'uz' ? 'Xona paroli' : lang === 'ru' ? 'Пароль комнаты' : 'Room Password'}
+                                </h3>
+                                <div className="space-y-3">
+                                    <input
+                                        type="password"
+                                        placeholder={lang === 'uz' ? 'Joriy parol' : lang === 'ru' ? 'Текущий пароль' : 'Current password'}
+                                        value={changePwOld}
+                                        onChange={e => setChangePwOld(e.target.value)}
+                                        className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder={lang === 'uz' ? 'Yangi parol (kamida 6 ta belgi)' : lang === 'ru' ? 'Новый пароль (мин. 6 символов)' : 'New password (min. 6 chars)'}
+                                        value={changePwNew}
+                                        onChange={e => setChangePwNew(e.target.value)}
+                                        className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                                    />
+                                    <button
+                                        disabled={!changePwOld || !changePwNew || changePwNew.length < 6 || changePwLoading}
+                                        onClick={async () => {
+                                            setChangePwLoading(true);
+                                            try {
+                                                await API.put(`/api/meetings/${meeting._id}/password`, {
+                                                    oldPassword: changePwOld,
+                                                    newPassword: changePwNew
+                                                });
+                                                toast.success(lang === 'uz' ? 'Parol yangilandi!' : lang === 'ru' ? 'Пароль обновлён!' : 'Password updated!');
+                                                setChangePwOld('');
+                                                setChangePwNew('');
+                                                setShowSettings(false);
+                                            } catch (err) {
+                                                toast.error(err.response?.data?.message || t('action_failed'));
+                                            } finally {
+                                                setChangePwLoading(false);
+                                            }
+                                        }}
+                                        className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all"
+                                    >
+                                        {changePwLoading
+                                            ? (lang === 'uz' ? 'Saqlanmoqda...' : lang === 'ru' ? 'Сохранение...' : 'Saving...')
+                                            : (lang === 'uz' ? 'Parolni yangilash' : lang === 'ru' ? 'Обновить пароль' : 'Update Password')}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <button onClick={() => setShowSettings(false)}
                             className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
                             Saqlash
