@@ -351,8 +351,10 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
     const [time, setTime] = useState(new Date());
     const [roomType, setRoomType] = useState('public');
     const [roomPassword, setRoomPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
+    const [showPassword, setShowPassword] = useState(true);
     const [passwordCopied, setPasswordCopied] = useState(false);
+    const [codeCopied, setCodeCopied] = useState(false);
+    const [createdRoom, setCreatedRoom] = useState(null); // { code, title, roomType, password }
     const [comingSoon, setComingSoon] = useState({ show: false, name: '' });
     const navigate = useNavigate();
     const toast = useToast();
@@ -413,14 +415,6 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
     const passwordStrength = getPasswordStrength();
 
     const handleCreateRoom = async () => {
-        if (roomType === 'private' && !roomPassword.trim()) {
-            toast.error(t('pw_required_private'));
-            return;
-        }
-        if (roomType === 'public' && roomPassword.trim()) {
-            toast.error(t('pw_not_allowed_public'));
-            return;
-        }
         if (roomType === 'private' && !passwordStrength.valid) {
             toast.error(t('pw_too_weak'));
             return;
@@ -433,10 +427,12 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                 password: roomType === 'private' ? roomPassword : undefined
             });
 
-            // If guest created meeting, show registration prompt
-            if (isGuest) {
+            if (roomType === 'private') {
+                // Show success screen so user can copy code + password before joining
+                setCreatedRoom({ code: data.meetingCode, title: data.title, roomType, password: roomPassword });
+                setShowNewMeeting(false);
+            } else if (isGuest) {
                 toast.success(t('guest_meeting_created'), 5000);
-                // Navigate after brief delay to show toast
                 setTimeout(() => navigate(`/room/${data.meetingCode}`), 1500);
             } else {
                 navigate(`/room/${data.meetingCode}`);
@@ -491,8 +487,18 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
 
     const [showNewMeeting, setShowNewMeeting] = useState(false);
 
+    const resetNewMeeting = () => {
+        setShowNewMeeting(false);
+        setRoomPassword('');
+        setMeetingTitle('');
+        setRoomType('public');
+        setCreatedRoom(null);
+        setPasswordCopied(false);
+        setCodeCopied(false);
+    };
+
     const handleActionClick = (id) => {
-        if (id === 'new') { setShowNewMeeting(v => !v); return; }
+        if (id === 'new') { setCreatedRoom(null); setShowNewMeeting(v => !v); return; }
         if (id === 'join') { onNav('join'); return; }
         if (id === 'schedule') { onNav('schedule'); return; }
         if (id === 'share') { onNav('join'); return; }
@@ -613,7 +619,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                                     </div>
                                 </button>
                                 <button
-                                    onClick={() => setRoomType('private')}
+                                    onClick={() => { setRoomType('private'); if (!roomPassword) generatePassword(); }}
                                     className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 ${roomType === 'private'
                                         ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-500 text-purple-600 dark:text-purple-400' 
                                         : 'bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-purple-300'
@@ -747,7 +753,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
 
                             {/* Action Buttons */}
                             <div className="flex gap-4 pt-4">
-                                <button onClick={() => { setShowNewMeeting(false); setRoomPassword(''); setMeetingTitle(''); }}
+                                <button onClick={resetNewMeeting}
                                     className="px-8 py-4 text-sm font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-2xl transition-all flex-1 active:scale-95">
                                     {lang === 'uz' ? 'Bekor' : lang === 'ru' ? 'Отмена' : 'Cancel'}
                                 </button>
@@ -756,6 +762,99 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                                     {loading ? t('starting') : t('start_meeting')}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Private Room Created Success Modal ───────────────────────── */}
+            {createdRoom && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="w-full max-w-sm bg-white dark:bg-[#161b22] rounded-3xl shadow-2xl overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-br from-purple-600 to-indigo-700 px-6 py-6 text-center">
+                            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                </svg>
+                            </div>
+                            <h2 className="text-lg font-black text-white">
+                                {lang === 'uz' ? 'Shaxsiy xona yaratildi!' : lang === 'ru' ? 'Приватная комната создана!' : 'Private Room Created!'}
+                            </h2>
+                            <p className="text-purple-200 text-xs mt-1">
+                                {lang === 'uz' ? 'Kodni va parolni saqlang' : lang === 'ru' ? 'Сохраните код и пароль' : 'Save the code and password'}
+                            </p>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-6 py-5 space-y-3">
+                            {/* Meeting Code */}
+                            <div className="bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                                        {lang === 'uz' ? 'Xona kodi' : lang === 'ru' ? 'Код комнаты' : 'Room Code'}
+                                    </p>
+                                    <p className="text-lg font-black text-gray-900 dark:text-white font-mono tracking-widest">{createdRoom.code}</p>
+                                </div>
+                                <button
+                                    onClick={() => { navigator.clipboard.writeText(createdRoom.code); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000); }}
+                                    className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${codeCopied ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                                >
+                                    {codeCopied
+                                        ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/></svg>
+                                        : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                    }
+                                </button>
+                            </div>
+
+                            {/* Password */}
+                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-0.5">
+                                        {lang === 'uz' ? 'Xona paroli' : lang === 'ru' ? 'Пароль комнаты' : 'Room Password'}
+                                    </p>
+                                    <p className="text-2xl font-black text-purple-700 dark:text-purple-300 font-mono tracking-[0.3em]">
+                                        {createdRoom.password.slice(0,3)} {createdRoom.password.slice(3)}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => { navigator.clipboard.writeText(createdRoom.password); setPasswordCopied(true); setTimeout(() => setPasswordCopied(false), 2000); }}
+                                    className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${passwordCopied ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'}`}
+                                >
+                                    {passwordCopied
+                                        ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/></svg>
+                                        : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                    }
+                                </button>
+                            </div>
+
+                            {/* Copy both */}
+                            <button
+                                onClick={() => {
+                                    const text = lang === 'uz'
+                                        ? `Xona kodi: ${createdRoom.code}\nParol: ${createdRoom.password}`
+                                        : lang === 'ru'
+                                        ? `Код комнаты: ${createdRoom.code}\nПароль: ${createdRoom.password}`
+                                        : `Room code: ${createdRoom.code}\nPassword: ${createdRoom.password}`;
+                                    navigator.clipboard.writeText(text);
+                                    toast.success(lang === 'uz' ? 'Nusxalandi!' : lang === 'ru' ? 'Скопировано!' : 'Copied!');
+                                }}
+                                className="w-full py-2.5 text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-gray-400 dark:hover:border-gray-500 transition-all"
+                            >
+                                {lang === 'uz' ? '📋 Ikkalasini nusxalash' : lang === 'ru' ? '📋 Скопировать оба' : '📋 Copy both'}
+                            </button>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 pb-6 flex gap-3">
+                            <button onClick={resetNewMeeting}
+                                className="flex-1 py-3 text-sm font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-2xl transition-colors">
+                                {lang === 'uz' ? 'Yopish' : lang === 'ru' ? 'Закрыть' : 'Close'}
+                            </button>
+                            <button onClick={() => { resetNewMeeting(); navigate(`/room/${createdRoom.code}`); }}
+                                className="flex-1 py-3 text-sm font-black text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-2xl shadow-lg shadow-purple-500/30 transition-all active:scale-95">
+                                {lang === 'uz' ? 'Boshlash →' : lang === 'ru' ? 'Начать →' : 'Start →'}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -880,14 +979,8 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
     const [pinnedMeetings, setPinnedMeetings] = useState([]);
     const [activity, setActivity] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [followModal, setFollowModal] = useState(null); // 'following' | 'followers' | null
-    
-    // Search Users State
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState([]);
-    const [isSearching, setIsSearching] = useState(false);
-    
     // Edit Modal State
+    
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState({ name: '', bio: '', links: [] });
     const [saving, setSaving] = useState(false);
@@ -953,33 +1046,6 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
         fetchProfileData();
     }, []);
 
-    const handleSearch = async (e) => {
-        const q = e.target.value;
-        setSearchQuery(q);
-        if (q.trim().length > 1) {
-            setIsSearching(true);
-            try {
-                const { data } = await API.get(`/api/users/search?q=${q}`);
-                setSearchResults(data);
-            } catch (err) { console.error(err); }
-            finally { setIsSearching(false); }
-        } else {
-            setSearchResults([]);
-        }
-    };
-
-    const handleFollow = async (userId) => {
-        try {
-            await API.post(`/api/users/follow/${userId}`);
-            // Refresh search results or profile to show following status
-            const { data } = await API.get(`/api/users/search?q=${searchQuery}`);
-            setSearchResults(data);
-            // Also refresh profile if needed
-            const profRes = await API.get('/api/users/profile');
-            setProfile(profRes.data);
-        } catch (err) { console.error(err); }
-    };
-
     const roleColors = {
         admin: 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
         user:  'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800',
@@ -987,7 +1053,6 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
     };
     const roleColor = roleColors[profile?.role] || roleColors.guest;
     const avatarInitial = profile?.name?.[0]?.toUpperCase() || '?';
-    const username = profile?.email ? profile.email.split('@')[0].toLowerCase() : 'user';
 
     const heatmapWeeks = activity?.heatmap || Array.from({ length: 52 }, () => Array.from({ length: 7 }, () => 0));
     const totalMeetings = activity?.totalMeetings || 0;
@@ -1120,7 +1185,6 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
                             </div>
                         </div>
                         <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight mb-0.5">{profile?.name}</h1>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">@{username}</p>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize ${roleColor}`}>
                             {profile?.role || 'User'}
                         </span>
@@ -1134,70 +1198,17 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
                     </div>
 
                     {/* Stats row */}
-                    <div className="grid grid-cols-3 gap-2">
-                        {[
-                            { label: lang === 'uz' ? 'Uchrashuvlar' : lang === 'ru' ? 'Встреч' : 'Meetings', value: totalMeetings },
-                            { label: lang === 'uz' ? 'Kuzatmoqda' : lang === 'ru' ? 'Подписки' : 'Following', value: profile?.following?.length || 0, onClick: () => setFollowModal('following') },
-                            { label: lang === 'uz' ? 'Kuzatuvchi' : lang === 'ru' ? 'Читатели' : 'Followers', value: profile?.followers?.length || 0, onClick: () => setFollowModal('followers') },
-                        ].map((stat, i) => (
-                            <button key={i} onClick={stat.onClick}
-                                className={`bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-3 text-center transition-colors ${stat.onClick ? 'hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 cursor-pointer' : 'cursor-default'}`}>
-                                <p className="text-xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                                <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-0.5 leading-tight">{stat.label}</p>
-                            </button>
-                        ))}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-3 text-center">
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{totalMeetings}</p>
+                        <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-0.5 leading-tight">
+                            {lang === 'uz' ? 'Uchrashuvlar' : lang === 'ru' ? 'Встреч' : 'Meetings'}
+                        </p>
                     </div>
 
                     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
                             {lang === 'uz' ? 'Ma\'lumotlar' : lang === 'ru' ? 'Информация' : 'Info'}
                         </p>
-
-                        {/* User Search Section */}
-                        <div className="mb-3">
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    placeholder={lang === 'uz' ? 'User qidirish...' : lang === 'ru' ? 'Поиск пользователей...' : 'Search users...'}
-                                    value={searchQuery}
-                                    onChange={handleSearch}
-                                    className="w-full pl-10 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                                />
-                                <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </div>
-
-                            {searchResults.length > 0 && (
-                                <div className="mt-3 space-y-2 max-h-60 overflow-y-auto custom-scrollbar bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-2 shadow-xl relative z-20">
-                                    {searchResults.map(user => (
-                                        <div key={user._id} className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-900/50 rounded-lg transition-colors border border-transparent">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                                                    {user.name[0].toUpperCase()}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user.name}</p>
-                                                    <p className="text-[10px] text-gray-500 truncate">@{user.username}</p>
-                                                </div>
-                                            </div>
-                                            {profile?.following?.some(f => (f._id || f) === user._id) ? (
-                                                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">
-                                                    {lang === 'uz' ? 'Kuzatilmoqda' : 'Following'}
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleFollow(user._id)}
-                                                    className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md transition-colors"
-                                                >
-                                                    {lang === 'uz' ? 'Kuzatish' : 'Follow'}
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
 
                         <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                             <li className="flex items-center gap-2">
@@ -1338,64 +1349,6 @@ const ProfileView = ({ t, lang, userInfo: authInfo }) => {
                 </div>
             </div>
 
-            {/* Following / Followers Modal */}
-            {followModal && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setFollowModal(null)}>
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                        {/* Header */}
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                            <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-                                <button onClick={() => setFollowModal('following')}
-                                    className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
-                                        followModal === 'following'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                    }`}>
-                                    {lang === 'uz' ? 'Kuzatilayotgan' : lang === 'ru' ? 'Подписки' : 'Following'} ({profile?.following?.length || 0})
-                                </button>
-                                <button onClick={() => setFollowModal('followers')}
-                                    className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
-                                        followModal === 'followers'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                    }`}>
-                                    {lang === 'uz' ? 'Kuzatuvchilar' : lang === 'ru' ? 'Подписчики' : 'Followers'} ({profile?.followers?.length || 0})
-                                </button>
-                            </div>
-                            <button onClick={() => setFollowModal(null)} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-white rounded-lg transition-colors">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        {/* User List */}
-                        <div className="overflow-y-auto flex-1 divide-y divide-gray-50 dark:divide-gray-700/50">
-                            {(followModal === 'following' ? (profile?.following || []) : (profile?.followers || [])).length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                                    <svg className="w-12 h-12 mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                    <p className="text-sm font-medium">
-                                        {lang === 'uz' ? 'Hali hech kim yo\'q' : lang === 'ru' ? 'Пока никого нет' : 'Nobody here yet'}
-                                    </p>
-                                </div>
-                            ) : (
-                                (followModal === 'following' ? (profile?.following || []) : (profile?.followers || [])).map(user => (
-                                    <div key={user._id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                                            {user.avatar && !user.avatar.includes('anonymous') ? (
-                                                <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
-                                            ) : (
-                                                user.name?.[0]?.toUpperCase() || '?'
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user.name}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

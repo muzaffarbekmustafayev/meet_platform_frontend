@@ -162,7 +162,6 @@ const AuthPage = () => {
 
     const [isLogin, setIsLogin] = useState(location.pathname !== '/register');
     const [name, setName] = useState('');
-    const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -192,7 +191,7 @@ const AuthPage = () => {
                 login(data);
                 navigate(data.role === 'admin' ? '/admin' : '/dashboard', { replace: true });
             } else {
-                const { data } = await API.post('/api/users/register', { name, username, email, password });
+                const { data } = await API.post('/api/users/register', { name, email, password });
                 login(data);
                 navigate('/dashboard', { replace: true });
             }
@@ -360,16 +359,10 @@ const AuthPage = () => {
                     <form onSubmit={submit} className="space-y-3.5">
 
                         {!isLogin && (
-                            <>
-                                <div className="relative">
-                                    <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input type="text" placeholder={l.name} value={name} onChange={e => setName(e.target.value)} className={inputCls} required />
-                                </div>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">@</span>
-                                    <input type="text" placeholder={l.username} value={username} onChange={e => setUsername(e.target.value)} className={inputCls} required />
-                                </div>
-                            </>
+                            <div className="relative">
+                                <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input type="text" placeholder={l.name} value={name} onChange={e => setName(e.target.value)} className={inputCls} required />
+                            </div>
                         )}
 
                         <div className="relative">
