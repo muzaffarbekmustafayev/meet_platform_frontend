@@ -932,7 +932,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-sm">
                                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                             </div>
-                            <h3 className="text-lg font-black mb-1 tracking-tight">{APP_NAME} Pro</h3>
+                            <h3 className="text-lg font-black mb-1 tracking-tight">{APP_NAME} </h3>
                             <p className="text-white/70 text-sm mb-5 leading-relaxed">
                                 {lang === 'uz' ? 'Cheksiz vaqt va yuqori sifat.' : lang === 'ru' ? 'Неограниченное время и высокое качество.' : 'Unlimited meetings & HD video.'}
                             </p>

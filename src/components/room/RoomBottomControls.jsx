@@ -101,13 +101,14 @@ const RoomBottomControls = ({
     };
 
     // ── Right-side panel button ──
-    const PanelBtn = ({ icon, label, active, badge = 0, onClick, title }) => (
+    const PanelBtn = ({ icon, label, shortLabel, active, badge = 0, onClick, title, mobileHidden = false }) => (
         <button
             onClick={onClick}
             title={title}
             aria-label={title}
             aria-pressed={!!active}
-            className={`relative flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl transition-colors duration-150 active:scale-95 group min-w-[48px]
+            className={`relative flex flex-col items-center gap-1 px-1.5 sm:px-3 py-1.5 rounded-xl transition-all duration-150 active:scale-95 group min-w-[54px]
+                ${mobileHidden ? 'hidden xs:flex' : 'flex'}
                 ${active ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}
         >
             <div className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-150
@@ -119,27 +120,36 @@ const RoomBottomControls = ({
                     </span>
                 )}
             </div>
-            <span className={`text-[9px] font-semibold tracking-wide select-none ${active ? 'text-blue-400' : 'text-gray-500 group-hover:text-gray-300'}`}>
-                {label}
+            <span className={`text-[9px] font-semibold tracking-tight whitespace-nowrap select-none ${active ? 'text-blue-400' : 'text-gray-500 group-hover:text-gray-300'}`}>
+                <span className={shortLabel ? "hidden xs:inline" : ""}>{label}</span>
+                {shortLabel && <span className="xs:hidden">{shortLabel}</span>}
             </span>
         </button>
     );
 
     // ── Generic icon button ──
-    const CtrlBtn = ({ icon, label, onClick, active = false, disabled = false, title, mobileHidden = false, className: cls = '' }) => (
-        <div className={`${mobileHidden ? 'hidden sm:flex' : 'flex'} flex-col items-center gap-1 ${cls}`}>
+    const CtrlBtn = ({ icon, label, onClick, active = false, disabled = false, title, mobileHidden = false, className: cls = '', isDanger = false, onStart, onEnd }) => (
+        <div className={`${mobileHidden ? 'hidden sm:flex' : 'flex'} flex-col items-center gap-1 ${cls} min-w-[54px]`}>
             <button
                 onClick={onClick}
+                onMouseDown={onStart}
+                onMouseUp={onEnd}
+                onMouseLeave={onEnd}
+                onTouchStart={onStart}
+                onTouchEnd={onEnd}
                 disabled={disabled}
                 title={title}
                 aria-label={title}
                 aria-pressed={active}
-                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-150 active:scale-95 group disabled:opacity-40 disabled:cursor-not-allowed
-                    ${active ? 'bg-blue-500/15 hover:bg-blue-500/20' : 'bg-white/10 hover:bg-white/16'}`}
+                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 group disabled:opacity-40 disabled:cursor-not-allowed
+                    ${isDanger ? (active ? 'bg-white/10 hover:bg-white/16' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25') 
+                               : (active ? 'bg-blue-500/15 hover:bg-blue-500/20' : 'bg-white/10 hover:bg-white/16')}`}
             >
-                {React.cloneElement(icon, { className: `transition-colors ${active ? 'text-blue-400' : 'text-gray-300 group-hover:text-white'}` })}
+                {React.cloneElement(icon, { className: `transition-colors ${isDanger ? 'text-white' : (active ? 'text-blue-400' : 'text-gray-300 group-hover:text-white')}` })}
             </button>
-            <span className={`text-[9px] font-semibold tracking-wide select-none ${active ? 'text-blue-400' : 'text-gray-500'}`}>{label}</span>
+            <span className={`text-[9px] font-semibold tracking-tight whitespace-nowrap select-none ${isDanger ? (!active ? 'text-red-400' : 'text-gray-500') : (active ? 'text-blue-400' : 'text-gray-500')}`}>
+                {label}
+            </span>
         </div>
     );
 
@@ -147,14 +157,13 @@ const RoomBottomControls = ({
     const isGuest = myRole === 'guest';
 
     return (
-        <div className="relative room-bottom-bar z-50 bg-[#17191f] border-t border-white/6 flex items-center justify-between px-1.5 sm:px-5 md:px-8 py-2 md:py-3 min-h-[60px] md:min-h-[64px]">
+        <div className="relative room-bottom-bar z-50 bg-[#17191f] border-t border-white/6 flex items-center justify-between px-2 sm:px-6 py-2 md:py-3 min-h-[64px]">
 
             {/* Left: Meeting ID */}
-            <div className="hidden md:flex items-center min-w-[150px]">
+            <div className="hidden lg:flex items-center w-[180px]">
                 <button
                     type="button"
                     onClick={() => { navigator.clipboard.writeText(roomID); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                    title={t('ctl_meeting_id')}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/8 border border-white/8 transition-colors group"
                 >
                     <div className="flex flex-col items-start">
@@ -166,64 +175,40 @@ const RoomBottomControls = ({
                 </button>
             </div>
 
-            {/* Center: Media + action controls */}
-            <div className="flex items-center justify-center gap-1 sm:gap-2 flex-1 md:flex-none">
+            {/* Center: Media controls - Fixed Gaps and Removed flex-1 to prevent overlap */}
+            <div className="flex items-center justify-center gap-2 sm:gap-4 mx-auto">
                 {!isGuest && (
                     <>
-                        {/* Mic — click to toggle, hold to talk */}
-                        <div className="flex flex-col items-center gap-1">
-                            <button
-                                onClick={onMicClick}
-                                onMouseDown={onMicPressStart}
-                                onMouseUp={onMicPressEnd}
-                                onMouseLeave={onMicPressEnd}
-                                onTouchStart={onMicPressStart}
-                                onTouchEnd={onMicPressEnd}
-                                onTouchCancel={onMicPressEnd}
-                                onContextMenu={(e) => e.preventDefault()}
-                                title={isMuted ? t('ctl_unmute_hold') : t('ctl_mute')}
-                                aria-label={isMuted ? t('ctl_unmute') : t('ctl_mute')}
-                                aria-pressed={!isMuted}
-                                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-150 active:scale-95 select-none
-                                    ${isMuted ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25' : 'bg-white/10 hover:bg-white/16'}`}
-                            >
-                                {isMuted ? <MicOff size={19} className="text-white" /> : <Mic size={19} className="text-white" />}
-                            </button>
-                            <span className={`text-[9px] font-semibold tracking-wide select-none ${isMuted ? 'text-red-400' : 'text-gray-500'}`}>
-                                {isMuted ? t('ctl_unmute') : t('ctl_mute')}
-                            </span>
-                        </div>
+                        <CtrlBtn 
+                            icon={isMuted ? <MicOff size={19} /> : <Mic size={19} />}
+                            label={isMuted ? t('ctl_unmute') : t('ctl_mute')}
+                            onClick={onMicClick}
+                            onStart={onMicPressStart}
+                            onEnd={onMicPressEnd}
+                            isDanger={isMuted}
+                            active={!isMuted}
+                            title={isMuted ? t('ctl_unmute_hold') : t('ctl_mute')}
+                        />
 
-                        {/* Camera */}
-                        <div className="flex flex-col items-center gap-1">
-                            <button
-                                onClick={toggleVideo}
-                                title={isVideoOff ? t('ctl_start_video') : t('ctl_stop_video')}
-                                aria-label={isVideoOff ? t('ctl_start_video') : t('ctl_stop_video')}
-                                aria-pressed={!isVideoOff}
-                                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-150 active:scale-95
-                                    ${isVideoOff ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25' : 'bg-white/10 hover:bg-white/16'}`}
-                            >
-                                {isVideoOff ? <VideoOff size={19} className="text-white" /> : <VideoIcon size={19} className="text-white" />}
-                            </button>
-                            <span className={`text-[9px] font-semibold tracking-wide select-none ${isVideoOff ? 'text-red-400' : 'text-gray-500'}`}>
-                                {isVideoOff ? t('ctl_start_video') : t('ctl_stop_video')}
-                            </span>
-                        </div>
+                        <CtrlBtn 
+                            icon={isVideoOff ? <VideoOff size={19} /> : <VideoIcon size={19} />}
+                            label={isVideoOff ? t('ctl_start_video') : t('ctl_stop_video')}
+                            onClick={toggleVideo}
+                            isDanger={isVideoOff}
+                            active={!isVideoOff}
+                            title={isVideoOff ? t('ctl_start_video') : t('ctl_stop_video')}
+                        />
 
-                        <div className="hidden sm:block w-px h-10 bg-white/8 mx-1" />
+                        <div className="hidden sm:block w-px h-8 bg-white/10 mx-1" />
 
-                        {/* Screen share — single click, browser picker handles source + audio toggle */}
                         <CtrlBtn
-                            icon={isSharingScreen ? <MonitorOff size={18} className="text-white" /> : <MonitorUp size={18} />}
+                            icon={isSharingScreen ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
                             label={isSharingScreen ? t('ctl_stop_share') : t('ctl_share')}
                             onClick={handleShareClick}
                             active={isSharingScreen}
-                            title={isSharingScreen ? t('ctl_stop_sharing') : t('ctl_share_screen')}
                             mobileHidden={true}
                         />
 
-                        {/* Record — mobile'da More menuda */}
                         {canRecord && (
                             <CtrlBtn
                                 icon={isRecording ? <StopCircle size={18} className="animate-pulse" /> : <Circle size={18} />}
@@ -231,17 +216,14 @@ const RoomBottomControls = ({
                                 onClick={isRecording ? stopRecording : startRecording}
                                 active={isRecording}
                                 mobileHidden={true}
-                                title={isRecording ? t('ctl_stop_recording') : t('ctl_start_recording')}
                             />
                         )}
 
-                        {/* Raise Hand — mobile'da More menuda */}
                         <CtrlBtn
                             icon={<Hand size={18} />}
                             label={t('ctl_raise')}
                             onClick={raiseHand}
                             mobileHidden={true}
-                            title={t('ctl_raise_hand')}
                         />
                     </>
                 )}
@@ -253,67 +235,52 @@ const RoomBottomControls = ({
                         label={t('ctl_raise')}
                         onClick={raiseHand}
                         mobileHidden={true}
-                        title={t('ctl_raise_hand')}
                     />
                 )}
             </div>
 
             {/* Right: Panel toggles + Leave */}
-            <div className="flex items-center gap-0.5 sm:gap-1 justify-end min-w-[140px] md:min-w-[150px]">
-                <PanelBtn icon={<Settings size={16} />} label={t('ctl_settings')} active={showSettings} onClick={() => setShowSettings(!showSettings)} title={t('ctl_settings')} />
-                <PanelBtn icon={<MessageSquare size={16} />} label={t('ctl_chat')} active={showChat} badge={unreadMessages} onClick={() => { setShowChat(!showChat); setShowParticipants(false); }} title={t('ctl_chat')} />
+            <div className="flex items-center gap-1 justify-end w-[140px] sm:w-auto">
+                <PanelBtn icon={<Settings size={16} />} label={t('ctl_settings')} active={showSettings} onClick={() => setShowSettings(!showSettings)} mobileHidden={true} />
+                <PanelBtn icon={<MessageSquare size={16} />} label={t('ctl_chat')} shortLabel={t('ctl_chat_short') || 'Chat'} active={showChat} badge={unreadMessages} onClick={() => { setShowChat(!showChat); setShowParticipants(false); }} />
                 <PanelBtn
                     icon={<Users size={16} />}
                     label={roomUsers.length > 0 ? `${t('ctl_people')} (${roomUsers.length})` : t('ctl_people')}
+                    shortLabel={roomUsers.length > 0 ? `(${roomUsers.length})` : t('ctl_people_short') || 'People'}
                     active={showParticipants}
                     badge={waitingBadge}
                     onClick={() => { setShowParticipants(!showParticipants); setShowChat(false); }}
-                    title={t('ctl_people')}
                 />
 
-                {/* Mobile more */}
                 <button
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    aria-label="More options"
-                    aria-expanded={mobileMenuOpen}
-                    className="relative sm:hidden flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl text-gray-400"
+                    className="relative sm:hidden flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl text-gray-400 min-w-[48px]"
                 >
                     <div className="w-9 h-9 rounded-xl bg-white/8 flex items-center justify-center">
                         <MoreHorizontal size={16} />
                     </div>
-                    {totalBadge > 0 && <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 bg-blue-500 text-[9px] font-black rounded-full flex items-center justify-center text-white">{totalBadge > 9 ? '9+' : totalBadge}</span>}
                     <span className="text-[9px] font-semibold text-gray-500">{t('ctl_more')}</span>
                 </button>
 
-                <div className="hidden sm:block w-px h-8 bg-white/8 mx-1.5" />
+                <div className="hidden sm:block w-px h-8 bg-white/10 mx-2" />
 
-                {/* Leave — host gets a popover with Leave / End for all */}
                 <div className="relative" ref={leaveWrapRef}>
                     <button
                         onClick={handleLeaveClick}
-                        aria-label="Leave meeting"
-                        aria-haspopup={isHost ? 'menu' : undefined}
-                        aria-expanded={isHost ? leaveMenuOpen : undefined}
-                        className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-colors duration-150 shadow-lg shadow-red-900/30"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-red-900/30"
                     >
                         <PhoneOff size={15} />
-                        <span className="hidden sm:inline">{t('ctl_leave')}</span>
+                        <span className="hidden md:inline">{t('ctl_leave')}</span>
                     </button>
                     {isHost && leaveMenuOpen && (
-                        <div role="menu" className="absolute bottom-full right-0 mb-2 w-56 bg-[#1e2028] border border-white/10 rounded-2xl p-2 shadow-2xl z-50">
-                            <button
-                                role="menuitem"
-                                onClick={() => { setLeaveMenuOpen(false); endMeetingForAll?.(); }}
-                                className="w-full text-left px-3 py-2.5 text-xs font-semibold text-red-400 hover:text-white hover:bg-red-600/30 rounded-xl transition-colors"
-                            >
+                        <div className="absolute bottom-full right-0 mb-3 w-60 bg-[#1e2028] border border-white/10 rounded-2xl p-2 shadow-2xl z-[60]">
+                            <button onClick={() => { setLeaveMenuOpen(false); endMeetingForAll?.(); }}
+                                className="w-full text-left px-3 py-3 text-xs font-semibold text-red-400 hover:text-white hover:bg-red-600/30 rounded-xl transition-colors">
                                 {t('leave_end_all')}
                                 <span className="block text-[10px] font-medium text-gray-500 mt-0.5">{t('leave_end_all_sub')}</span>
                             </button>
-                            <button
-                                role="menuitem"
-                                onClick={() => { setLeaveMenuOpen(false); leaveRoom(); }}
-                                className="w-full text-left px-3 py-2.5 text-xs font-semibold text-gray-200 hover:text-white hover:bg-white/8 rounded-xl transition-colors mt-1"
-                            >
+                            <button onClick={() => { setLeaveMenuOpen(false); leaveRoom(); }}
+                                className="w-full text-left px-3 py-3 text-xs font-semibold text-gray-200 hover:text-white hover:bg-white/8 rounded-xl transition-colors mt-1">
                                 {t('leave_only_me')}
                                 <span className="block text-[10px] font-medium text-gray-500 mt-0.5">{t('leave_only_me_sub')}</span>
                             </button>
@@ -328,6 +295,51 @@ const RoomBottomControls = ({
                     <button onClick={() => { setShowSettings(!showSettings); setMobileMenuOpen(false); }}
                         className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/8 transition-colors">
                         <Settings size={15} className="text-gray-400" /> {t('ctl_settings')}
+                    </button>
+                    <button onClick={() => { raiseHand(); setMobileMenuOpen(false); }}
+                        className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/8 transition-colors">
+                        <Hand size={15} className="text-amber-400" /> {t('ctl_raise_hand')}
+                    </button>
+                    {!isGuest && (
+                        <>
+                            <button onClick={() => { setMobileMenuOpen(false); handleShareClick(); }}
+                                className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/8 transition-colors">
+                                {isSharingScreen ? <MonitorOff size={15} className="text-blue-400" /> : <MonitorUp size={15} className="text-blue-400" />}
+                                {isSharingScreen ? t('ctl_stop_sharing') : t('ctl_share_screen')}
+                            </button>
+                            {canRecord && (
+                                <button onClick={() => { isRecording ? stopRecording() : startRecording(); setMobileMenuOpen(false); }}
+                                    className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/8 transition-colors">
+                                    {isRecording ? <StopCircle size={15} className="text-red-400" /> : <Circle size={15} className="text-gray-400" />}
+                                    {isRecording ? t('ctl_stop_recording') : t('ctl_start_recording')}
+                                </button>
+                            )}
+                        </>
+                    )}
+                    <div className="my-1.5 border-t border-white/6" />
+                    <button onClick={() => { setMobileMenuOpen(false); handleLeaveClick(); }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-500 px-3 py-3 text-sm font-bold text-white transition-colors">
+                        <PhoneOff size={15} /> {t('ctl_leave')}
+                    </button>
+                </div>
+            )}
+            {/* Mobile expanded menu — Optimized for narrow screens */}
+            {mobileMenuOpen && (
+                <div role="menu" className="absolute bottom-full right-2 mb-3 w-60 rounded-2xl border border-white/10 bg-[#1e2028] shadow-2xl p-2 sm:hidden z-50 animate-in slide-in-from-bottom-2 duration-200">
+                    <button onClick={() => { setShowChat(!showChat); setShowParticipants(false); setMobileMenuOpen(false); }}
+                        className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${showChat ? 'bg-blue-500/20 text-blue-400' : 'text-gray-200 hover:bg-white/8'}`}>
+                        <div className="flex items-center gap-3">
+                            <MessageSquare size={15} className={showChat ? 'text-blue-400' : 'text-gray-400'} /> {t('ctl_chat')}
+                        </div>
+                        {unreadMessages > 0 && (
+                            <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-[10px] font-black rounded-full flex items-center justify-center text-white shadow-sm">
+                                {unreadMessages > 9 ? '9+' : unreadMessages}
+                            </span>
+                        )}
+                    </button>
+                    <button onClick={() => { setShowSettings(!showSettings); setMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${showSettings ? 'bg-blue-500/20 text-blue-400' : 'text-gray-200 hover:bg-white/8'}`}>
+                        <Settings size={15} className={showSettings ? 'text-blue-400' : 'text-gray-400'} /> {t('ctl_settings')}
                     </button>
                     <button onClick={() => { raiseHand(); setMobileMenuOpen(false); }}
                         className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/8 transition-colors">

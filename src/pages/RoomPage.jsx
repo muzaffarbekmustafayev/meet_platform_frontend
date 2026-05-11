@@ -52,7 +52,7 @@ const RoomPage = () => {
     const [newMessage, setNewMessage] = useState('');
     const [editingMessageId, setEditingMessageId] = useState(null);
     const [showChat, setShowChat] = useState(false);
-    const [showParticipants, setShowParticipants] = useState(true);
+    const [showParticipants, setShowParticipants] = useState(false);
     const [roomUsers, setRoomUsers] = useState([]);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const [copied, setCopied] = useState(false);
@@ -1316,31 +1316,32 @@ const RoomPage = () => {
                                 </div>
                             )}
 
-                            {/* ─── Floating Thumbnails (Mobile only, horizontal strip) ─── */}
-                            <div className="md:hidden flex flex-row gap-2 overflow-x-auto w-full px-1 py-1.5 shrink-0 snap-x custom-scrollbar">
-                                {effectiveStageUser.socketId !== socketRef.current?.id && (
-                                    <div className="w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
-                                        <Video stream={stream} userName="You" role={myRole} isLocal={true} userVideoStatus={!isVideoOff} />
+                        </div>
+
+                        {/* ─── Floating Thumbnails (Mobile only, horizontal strip) — Moved outside stage to prevent overlap ─── */}
+                        <div className="md:hidden flex flex-row gap-2 overflow-x-auto w-full px-1 py-1.5 shrink-0 snap-x custom-scrollbar bg-black/20 backdrop-blur-sm rounded-xl border border-white/5 mt-auto">
+                            {effectiveStageUser.socketId !== socketRef.current?.id && (
+                                <div className="w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
+                                    <Video stream={stream} userName="You" role={myRole} isLocal={true} userVideoStatus={!isVideoOff} />
+                                </div>
+                            )}
+                            {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).map((peerObj, idx) => {
+                                const user = roomUsers.find(u => u.socketId === peerObj.peerID);
+                                return (
+                                    <div key={idx} className="relative w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
+                                        <Video
+                                            stream={remoteStreams[peerObj.peerID]}
+                                            userName={user?.userName || 'Participant'}
+                                            role={user?.role}
+                                            isLocal={false}
+                                            userVideoStatus={user?.videoStatus !== false}
+                                        />
+                                        {handRaisedUsers.includes(peerObj.userId) && (
+                                            <div className="absolute top-0.5 right-0.5 text-[9px] leading-none">✋</div>
+                                        )}
                                     </div>
-                                )}
-                                {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).map((peerObj, idx) => {
-                                    const user = roomUsers.find(u => u.socketId === peerObj.peerID);
-                                    return (
-                                        <div key={idx} className="relative w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
-                                            <Video
-                                                stream={remoteStreams[peerObj.peerID]}
-                                                userName={user?.userName || 'Participant'}
-                                                role={user?.role}
-                                                isLocal={false}
-                                                userVideoStatus={user?.videoStatus !== false}
-                                            />
-                                            {handRaisedUsers.includes(peerObj.userId) && (
-                                                <div className="absolute top-0.5 right-0.5 text-[9px] leading-none">✋</div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                );
+                            })}
                         </div>
 
                         {/* ─── Right Thumbnail Strip (Desktop only) ─── */}
