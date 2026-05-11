@@ -96,6 +96,8 @@ const RoomPage = () => {
     const [gridSize, setGridSize] = useState('auto');
     const [pinnedSocketId, setPinnedSocketId] = useState(null);
     const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+    const [viewMenuOpen, setViewMenuOpen] = useState(false);
+    const viewMenuRef = useRef(null);
 
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
@@ -156,9 +158,27 @@ const RoomPage = () => {
     }, []);
 
     useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (viewMenuRef.current && !viewMenuRef.current.contains(event.target)) {
+                setViewMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
         scrollToBottom();
         if (showChat) setUnreadMessages(0);
     }, [messages, showChat]);
+
+    const copyRoomID = useCallback(() => {
+        if (!roomID) return;
+        navigator.clipboard.writeText(roomID);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        toast.info(lang === 'uz' ? "Xona ID-si nusxalandi!" : lang === 'ru' ? "ID комнаты скопировано!" : "Room ID copied!");
+    }, [roomID, lang, toast]);
 
     useEffect(() => {
         if (!meeting?.startTime) return;
@@ -1182,9 +1202,27 @@ const RoomPage = () => {
                         <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-500">Live</span>
                     </div>
                     <div className="w-px h-4 bg-white/10 shrink-0" />
-                    <h1 className="text-sm font-semibold text-white/90 tracking-tight truncate">
-                        {meeting?.title || 'Xona tayyorlanmoqda...'}
-                    </h1>
+                    <div className="flex flex-col min-w-0">
+                        <h1 className="text-sm font-semibold text-white/90 tracking-tight truncate">
+                            {meeting?.title || 'Xona tayyorlanmoqda...'}
+                        </h1>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <button 
+                                onClick={copyRoomID}
+                                className="flex items-center gap-1 group cursor-pointer"
+                                title={t('copy_id') || 'Copy ID'}
+                            >
+                                <span className="text-[10px] font-medium text-gray-500 group-hover:text-blue-400 transition-colors">
+                                    ID: {roomID}
+                                </span>
+                                {copied ? (
+                                    <Check size={10} className="text-emerald-500 animate-in zoom-in duration-200" />
+                                ) : (
+                                    <Copy size={9} className="text-gray-600 group-hover:text-blue-400 transition-colors" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
                     {/* Timer */}
                     <div className="hidden sm:flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-lg bg-white/5">
                         <Clock size={11} className="text-gray-500" />
@@ -1221,16 +1259,55 @@ const RoomPage = () => {
                         </div>
                     </div>
 
-                    {/* View mode toggle */}
-                    <div className="flex items-center gap-0.5 p-1 rounded-xl bg-white/5 border border-white/8">
-                        <button onClick={() => setViewMode('speaker')} title="Speaker view"
-                            className={`rounded-lg p-1.5 transition-all ${viewMode === 'speaker' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                            <Presentation size={14} />
+                    {/* View mode dropdown — Consolidated logic */}
+                    <div className="relative" ref={viewMenuRef}>
+                        <button
+                            onClick={() => setViewMenuOpen(!viewMenuOpen)}
+                            className="flex items-center gap-2 h-9 px-3 rounded-xl bg-white/5 border border-white/8 text-gray-300 hover:bg-white/10 transition-all font-bold text-[11px]"
+                        >
+                            {viewMode === 'speaker' ? <Presentation size={14} className="text-blue-400" /> : <LayoutGrid size={14} className="text-blue-400" />}
+                            <span className="hidden sm:inline">{viewMode === 'speaker' ? 'Speaker' : 'Gallery'}</span>
+                            <ChevronDown size={14} className={`text-gray-500 transition-transform ${viewMenuOpen ? 'rotate-180' : ''}`} />
                         </button>
-                        <button onClick={() => setViewMode('grid')} title="Grid view"
-                            className={`rounded-lg p-1.5 transition-all ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                            <LayoutGrid size={14} />
-                        </button>
+
+                        {viewMenuOpen && (
+                            <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#1e222d] border border-white/10 shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                                <div className="px-3 py-1 mb-1 text-[10px] font-black text-gray-500 uppercase tracking-widest">Layout</div>
+                                <button
+                                    onClick={() => { setViewMode('speaker'); setViewMenuOpen(false); }}
+                                    className={`w-full flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${viewMode === 'speaker' ? 'bg-blue-600/10 text-blue-400' : 'text-gray-300 hover:bg-white/5'}`}
+                                >
+                                    <Presentation size={14} /> Speaker View
+                                </button>
+                                <button
+                                    onClick={() => { setViewMode('grid'); setViewMenuOpen(false); }}
+                                    className={`w-full flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${viewMode === 'grid' ? 'bg-blue-600/10 text-blue-400' : 'text-gray-300 hover:bg-white/5'}`}
+                                >
+                                    <LayoutGrid size={14} /> Gallery View
+                                </button>
+
+                                {viewMode === 'grid' && (
+                                    <>
+                                        <div className="mx-2 my-2 border-t border-white/5" />
+                                        <div className="px-3 py-1 mb-1 text-[10px] font-black text-gray-500 uppercase tracking-widest">Grid Size</div>
+                                        <div className="px-2 grid grid-cols-2 gap-1">
+                                            {['auto', '1x1', '2x2', '3x3'].map(size => (
+                                                <button
+                                                    key={size}
+                                                    onClick={() => { setGridSize(size); setViewMenuOpen(false); }}
+                                                    className={`px-2 py-1.5 rounded-lg text-[10px] font-bold text-center border transition-all
+                                                        ${gridSize === size 
+                                                            ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' 
+                                                            : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/8 hover:text-white'}`}
+                                                >
+                                                    {size.toUpperCase()}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <LanguageToggle compact />
@@ -1392,38 +1469,7 @@ const RoomPage = () => {
                     ) : (
                         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
-                            {/* ─── Grid View Header ─── */}
-                            <div className="shrink-0 px-2 sm:px-4 pt-2 pb-1.5 flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="flex items-center gap-1.5 text-gray-400">
-                                        <LayoutGrid size={14} />
-                                        <span className="text-xs font-semibold text-gray-400">Gallery</span>
-                                    </div>
-                                    <div className="flex items-center justify-center w-5 h-5 rounded-md bg-white/8 border border-white/10">
-                                        <span className="text-[9px] font-black text-gray-400 tabular-nums">{totalParticipantCount}</span>
-                                    </div>
-                                </div>
-                                {/* Segmented size control */}
-                                <div className="flex items-center p-0.5 rounded-lg bg-white/5 border border-white/8 gap-0.5">
-                                    {[
-                                        { key: 'auto', label: 'Auto' },
-                                        { key: '1x1',  label: '1×1'  },
-                                        { key: '2x2',  label: '2×2'  },
-                                        { key: '3x3',  label: '3×3'  },
-                                    ].map(({ key, label }) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => setGridSize(key)}
-                                            className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition-all duration-150
-                                                ${gridSize === key
-                                                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-900/50'
-                                                    : 'text-gray-500 hover:text-gray-300'}`}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+
 
                             {/* ─── Tile Grid ─── */}
                             <div className={`flex-1 min-h-0 grid gap-1.5 sm:gap-2 md:gap-2.5 auto-rows-fr px-1.5 sm:px-3 md:px-5 pb-1.5 sm:pb-3 md:pb-5
