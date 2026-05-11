@@ -62,7 +62,7 @@ input, select, textarea {
 
 /* Room sahifasi uchun safe area */
 .room-bottom-bar {
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
 
 /* Prevent tap highlight on touch devices */

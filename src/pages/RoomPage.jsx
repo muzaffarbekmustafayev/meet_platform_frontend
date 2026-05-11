@@ -1181,59 +1181,91 @@ const RoomPage = () => {
 
     return (
         <div className="flex flex-col room-fullheight bg-[#0c0e14] text-white font-sans overflow-hidden">
+            {/* General toast */}
             {toastMessage && (
                 <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
-                    <div className="bg-white dark:bg-[#1e222d] border border-gray-200 dark:border-white/10 text-gray-800 dark:text-gray-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 w-[calc(100vw-2rem)] max-w-sm">
+                    <div className="bg-[#1e222d] border border-white/10 text-gray-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 w-[calc(100vw-2rem)] max-w-sm">
                         <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shrink-0" />
                         <span className="text-sm font-medium">{toastMessage}</span>
                     </div>
                 </div>
             )}
+
+            {/* Waiting room admit toasts (host/cohost only) */}
+            {canModerate && waitingToasts.length > 0 && (
+                <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-[280px]">
+                    {waitingToasts.map((item) => (
+                        <div key={item.socketId} className="animate-in slide-in-from-right-4 fade-in duration-300 bg-[#1e222d] border border-amber-500/30 rounded-2xl p-3 shadow-2xl">
+                            <div className="flex items-start gap-2.5 mb-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                                    <span className="text-sm">✋</span>
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold text-white truncate">{item.userName || 'Foydalanuvchi'}</p>
+                                    <p className="text-[10px] text-amber-400 font-medium mt-0.5">Kirishni so'ramoqda</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => admitUser(item.socketId)}
+                                    className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-colors"
+                                >
+                                    Qabul
+                                </button>
+                                <button
+                                    onClick={() => denyUser(item.socketId)}
+                                    className="flex-1 py-1.5 rounded-lg bg-white/8 hover:bg-red-500/20 text-gray-300 hover:text-red-400 text-[11px] font-bold transition-colors"
+                                >
+                                    Rad
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
             
             {/* Top Bar — Zoom minimal style */}
-            <header className="h-12 md:h-14 flex items-center justify-between px-3 md:px-5 bg-[#17191f] border-b border-white/6 z-40 shrink-0">
+            <header className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-5 bg-[#13151c] border-b border-white/[0.06] z-40 shrink-0">
                 {/* Left: Live dot + Room name + Timer */}
-                <div className="flex items-center gap-2 md:gap-3 overflow-hidden min-w-0">
+                <div className="flex items-center gap-2 overflow-hidden min-w-0">
+                    {/* Live indicator */}
                     <div className="flex items-center gap-1.5 shrink-0">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-500">Live</span>
+                        <span className="hidden xs:block text-[10px] font-bold uppercase tracking-[0.12em] text-red-500">Live</span>
                     </div>
+
                     <div className="w-px h-4 bg-white/10 shrink-0" />
+
+                    {/* Room title + ID */}
                     <div className="flex flex-col min-w-0">
-                        <h1 className="text-sm font-semibold text-white/90 tracking-tight truncate">
-                            {meeting?.title || 'Xona tayyorlanmoqda...'}
+                        <h1 className="text-xs sm:text-sm font-semibold text-white/90 tracking-tight truncate max-w-[120px] xs:max-w-[180px] sm:max-w-none">
+                            {meeting?.title || 'Tayyorlanmoqda...'}
                         </h1>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <button 
-                                onClick={copyRoomID}
-                                className="flex items-center gap-1 group cursor-pointer"
-                                title={t('copy_id') || 'Copy ID'}
-                            >
-                                <span className="text-[10px] font-medium text-gray-500 group-hover:text-blue-400 transition-colors">
-                                    ID: {roomID}
-                                </span>
-                                {copied ? (
-                                    <Check size={10} className="text-emerald-500 animate-in zoom-in duration-200" />
-                                ) : (
-                                    <Copy size={9} className="text-gray-600 group-hover:text-blue-400 transition-colors" />
-                                )}
-                            </button>
-                        </div>
+                        <button
+                            onClick={copyRoomID}
+                            className="flex items-center gap-1 group cursor-pointer w-fit"
+                            title={t('copy_id') || 'Copy ID'}
+                        >
+                            <span className="text-[9px] font-mono text-gray-600 group-hover:text-blue-400 transition-colors truncate max-w-[80px] sm:max-w-none">
+                                {roomID}
+                            </span>
+                            {copied
+                                ? <Check size={9} className="text-emerald-500 shrink-0" />
+                                : <Copy size={8} className="text-gray-600 group-hover:text-blue-400 transition-colors shrink-0" />
+                            }
+                        </button>
                     </div>
-                    {/* Timer */}
-                    <div className="hidden sm:flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-lg bg-white/5">
-                        <Clock size={11} className="text-gray-500" />
-                        <span className="text-[11px] font-mono font-semibold text-gray-400 tabular-nums">{meetingElapsed}</span>
+
+                    {/* Timer — xs+ */}
+                    <div className="hidden xs:flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-lg bg-white/5 border border-white/5">
+                        <Clock size={10} className="text-gray-500" />
+                        <span className="text-[10px] font-mono font-semibold text-gray-400 tabular-nums">{meetingElapsed}</span>
                     </div>
-                    {/* Participant count */}
-                    <div className="hidden md:flex items-center gap-1 shrink-0">
-                        <Users size={11} className="text-gray-500" />
-                        <span className="text-[11px] font-semibold text-gray-500">{totalParticipantCount}</span>
-                    </div>
-                    {/* Role badge */}
+
+                    {/* Role badge — sm+ */}
                     {myRole && (
                         <span className={`hidden sm:inline-flex px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border shrink-0
                             ${myRole === 'host' ? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
@@ -1243,31 +1275,37 @@ const RoomPage = () => {
                             {myRole}
                         </span>
                     )}
+
+                    {/* Participant count — md+ */}
+                    <div className="hidden md:flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg bg-white/5">
+                        <Users size={10} className="text-gray-500" />
+                        <span className="text-[10px] font-semibold text-gray-500">{totalParticipantCount}</span>
+                    </div>
                 </div>
 
                 {/* Right: Network info + View toggle + Language */}
-                <div className="flex items-center gap-2 md:gap-3 shrink-0">
-                    {/* Security + Network — compact */}
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    {/* Network — md+ */}
                     <div className="hidden md:flex items-center gap-3">
                         <div className="flex items-center gap-1">
-                            <ShieldCheck size={12} className="text-emerald-500" />
+                            <ShieldCheck size={11} className="text-emerald-500" />
                             <span className="text-[10px] font-semibold text-emerald-500/80">Encrypted</span>
                         </div>
                         <div className={`flex items-center gap-1 ${networkInfo.tone}`}>
-                            <Wifi size={12} />
+                            <Wifi size={11} />
                             <span className="text-[10px] font-semibold">{networkInfo.ping}ms</span>
                         </div>
                     </div>
 
-                    {/* View mode dropdown — Consolidated logic */}
+                    {/* View mode dropdown */}
                     <div className="relative" ref={viewMenuRef}>
                         <button
                             onClick={() => setViewMenuOpen(!viewMenuOpen)}
-                            className="flex items-center gap-2 h-9 px-3 rounded-xl bg-white/5 border border-white/8 text-gray-300 hover:bg-white/10 transition-all font-bold text-[11px]"
+                            className="flex items-center gap-1.5 h-8 sm:h-9 px-2 sm:px-3 rounded-xl bg-white/5 border border-white/8 text-gray-300 hover:bg-white/10 transition-all"
                         >
-                            {viewMode === 'speaker' ? <Presentation size={14} className="text-blue-400" /> : <LayoutGrid size={14} className="text-blue-400" />}
-                            <span className="hidden sm:inline">{viewMode === 'speaker' ? 'Speaker' : 'Gallery'}</span>
-                            <ChevronDown size={14} className={`text-gray-500 transition-transform ${viewMenuOpen ? 'rotate-180' : ''}`} />
+                            {viewMode === 'speaker' ? <Presentation size={13} className="text-blue-400" /> : <LayoutGrid size={13} className="text-blue-400" />}
+                            <span className="hidden sm:inline text-[11px] font-bold">{viewMode === 'speaker' ? 'Speaker' : 'Gallery'}</span>
+                            <ChevronDown size={12} className={`text-gray-500 transition-transform ${viewMenuOpen ? 'rotate-180' : ''}`} />
                         </button>
 
                         {viewMenuOpen && (
@@ -1316,7 +1354,7 @@ const RoomPage = () => {
 
             {/* Main Area */}
             <div className="flex-1 flex overflow-hidden relative">
-                <div className="flex-1 flex flex-col p-1.5 sm:p-2.5 relative z-10 min-w-0">
+                <div className="flex-1 flex flex-col p-1 xs:p-1.5 sm:p-2 relative z-10 min-w-0">
                     {effectiveStageUser && viewMode === 'speaker' ? (
                     /* Zoom-style: stage + right thumbnail strip */
                     <div className="flex-1 flex flex-col md:flex-row overflow-hidden animate-in fade-in duration-500 relative gap-2">
@@ -1395,17 +1433,17 @@ const RoomPage = () => {
 
                         </div>
 
-                        {/* ─── Floating Thumbnails (Mobile only, horizontal strip) — Moved outside stage to prevent overlap ─── */}
-                        <div className="md:hidden flex flex-row gap-2 overflow-x-auto w-full px-1 py-1.5 shrink-0 snap-x custom-scrollbar bg-black/20 backdrop-blur-sm rounded-xl border border-white/5 mt-auto">
+                        {/* ─── Mobile thumbnail strip ─── */}
+                        <div className="md:hidden flex flex-row gap-1.5 overflow-x-auto w-full px-1 py-1.5 shrink-0 snap-x custom-scrollbar bg-black/30 backdrop-blur-sm rounded-xl border border-white/[0.06] mt-auto">
                             {effectiveStageUser.socketId !== socketRef.current?.id && (
-                                <div className="w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
+                                <div className="w-[88px] xs:w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-lg">
                                     <Video stream={stream} userName="You" role={myRole} isLocal={true} userVideoStatus={!isVideoOff} />
                                 </div>
                             )}
                             {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).map((peerObj, idx) => {
                                 const user = roomUsers.find(u => u.socketId === peerObj.peerID);
                                 return (
-                                    <div key={idx} className="relative w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
+                                    <div key={idx} className="relative w-[88px] xs:w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-lg">
                                         <Video
                                             stream={remoteStreams[peerObj.peerID]}
                                             userName={user?.userName || 'Participant'}
@@ -1472,20 +1510,18 @@ const RoomPage = () => {
 
 
                             {/* ─── Tile Grid ─── */}
-                            <div className={`flex-1 min-h-0 grid gap-1.5 sm:gap-2 md:gap-2.5 auto-rows-fr px-1.5 sm:px-3 md:px-5 pb-1.5 sm:pb-3 md:pb-5
+                            <div className={`flex-1 min-h-0 grid gap-1 xs:gap-1.5 sm:gap-2 md:gap-2.5 auto-rows-fr p-1 xs:p-1.5 sm:p-3 md:p-5
                                 ${gridClassMap[gridSize] || gridClassMap.auto}
                                 animate-in fade-in zoom-in-95 duration-400`}
                             >
                                 {/* Local user tile */}
-                                <div className={`relative min-h-[160px] sm:min-h-0 rounded-2xl overflow-hidden transition-all duration-300 group
-                                    bg-gradient-to-br from-[#0d1018] to-[#0b0d13]
+                                <div className={`relative min-h-[140px] xs:min-h-[160px] sm:min-h-0 rounded-xl sm:rounded-2xl overflow-hidden transition-all duration-300 group
+                                    bg-[#0d1018]
                                     ${isHost
-                                        ? 'shadow-[0_0_0_2px_rgba(59,130,246,0.45),0_8px_32px_rgba(0,0,0,0.5)]'
+                                        ? 'ring-2 ring-blue-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
                                         : isCoHost
-                                            ? 'shadow-[0_0_0_2px_rgba(16,185,129,0.45),0_8px_32px_rgba(0,0,0,0.5)]'
-                                            : isMuted
-                                                ? 'shadow-[0_0_0_1px_rgba(239,68,68,0.25),0_8px_32px_rgba(0,0,0,0.5)]'
-                                                : 'shadow-[0_0_0_1px_rgba(255,255,255,0.07),0_8px_32px_rgba(0,0,0,0.5)] hover:shadow-[0_0_0_2px_rgba(59,130,246,0.3),0_8px_32px_rgba(0,0,0,0.5)]'
+                                            ? 'ring-2 ring-emerald-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                                            : 'ring-1 ring-white/8 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:ring-blue-500/30'
                                     }`}>
                                     <Video
                                         stream={stream}
@@ -1532,17 +1568,15 @@ const RoomPage = () => {
                                     return (
                                         <div
                                             key={peerObj.peerID || index}
-                                            className={`relative min-h-[160px] sm:min-h-0 rounded-2xl overflow-hidden transition-all duration-300 group animate-in fade-in zoom-in-95 duration-400
-                                                bg-gradient-to-br from-[#0d1018] to-[#0b0d13]
+                                            className={`relative min-h-[140px] xs:min-h-[160px] sm:min-h-0 rounded-xl sm:rounded-2xl overflow-hidden transition-all duration-300 group animate-in fade-in zoom-in-95 duration-400
+                                                bg-[#0d1018]
                                                 ${isUserHost
-                                                    ? 'shadow-[0_0_0_2px_rgba(59,130,246,0.45),0_8px_32px_rgba(0,0,0,0.5)]'
+                                                    ? 'ring-2 ring-blue-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
                                                     : isUserCoHost
-                                                        ? 'shadow-[0_0_0_2px_rgba(16,185,129,0.45),0_8px_32px_rgba(0,0,0,0.5)]'
+                                                        ? 'ring-2 ring-emerald-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
                                                         : hasTurn
-                                                            ? 'shadow-[0_0_0_2px_rgba(245,158,11,0.5),0_8px_32px_rgba(0,0,0,0.5)]'
-                                                            : isUserMuted
-                                                                ? 'shadow-[0_0_0_1px_rgba(239,68,68,0.2),0_8px_32px_rgba(0,0,0,0.5)]'
-                                                                : 'shadow-[0_0_0_1px_rgba(255,255,255,0.07),0_8px_32px_rgba(0,0,0,0.5)] hover:shadow-[0_0_0_2px_rgba(59,130,246,0.3),0_8px_32px_rgba(0,0,0,0.5)]'
+                                                            ? 'ring-2 ring-amber-500/50 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                                                            : 'ring-1 ring-white/8 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:ring-blue-500/30'
                                                 }`}
                                         >
                                             <Video
