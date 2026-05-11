@@ -366,6 +366,7 @@ const RoomPage = () => {
             if (streamRef.current?.getAudioTracks()[0]?.enabled) {
                 streamRef.current.getAudioTracks()[0].enabled = false;
                 setIsMuted(true);
+                sessionStorage.setItem(`mic-${roomID}`, 'false');
                 socket.emit('update-media-status', { roomId: roomID, micStatus: false });
             }
         });
@@ -440,15 +441,25 @@ const RoomPage = () => {
                     }
                 });
                 
-                // Mute and hide video by default for all users when entering the room
-                currentStream.getAudioTracks().forEach(t => t.enabled = false);
-                currentStream.getVideoTracks().forEach(t => t.enabled = false);
+                // Restore previous mic/video state from sessionStorage (survives reload)
+                const savedMic = sessionStorage.getItem(`mic-${roomID}`);
+                const savedVideo = sessionStorage.getItem(`video-${roomID}`);
+                const micEnabled = savedMic === 'true';
+                const videoEnabled = savedVideo === 'true';
+
+                currentStream.getAudioTracks().forEach(t => { t.enabled = micEnabled; });
+                currentStream.getVideoTracks().forEach(t => { t.enabled = videoEnabled; });
+
+                setIsMuted(!micEnabled);
+                setIsVideoOff(!videoEnabled);
 
                 setStream(currentStream);
                 streamRef.current = currentStream;
                 if (userVideo.current) userVideo.current.srcObject = currentStream;
 
                 socket.emit('join-room', roomID, userInfo._id, userInfo.name, false, passwordInput);
+                // Notify peers of restored state
+                socket.emit('update-media-status', { roomId: roomID, micStatus: micEnabled, videoStatus: videoEnabled });
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const videoIn = devices.filter(device => device.kind === 'videoinput');
@@ -486,9 +497,20 @@ const RoomPage = () => {
         initMedia();
 
         return () => {
-            socket.emit('leave-room');
-            socket.disconnect();
-            socketRef.current = null;
+            // leaveRoom allaqachon chaqirilgan bo'lsa (socketRef null), qayta yubormaymiz
+            if (socketRef.current) {
+                socket.emit('leave-room');
+                socket.disconnect();
+                socketRef.current = null;
+            }
+            // Kamera va mikrofon yorug'ligini o'chirish
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(t => t.stop());
+                streamRef.current = null;
+            }
+            // Clear saved media state when leaving the room
+            sessionStorage.removeItem(`mic-${roomID}`);
+            sessionStorage.removeItem(`video-${roomID}`);
         };
     }, [roomID, navigate]);
 
@@ -527,13 +549,19 @@ const RoomPage = () => {
     }, [myRole, playNotificationSound, waitingRoomUsers]);
 
     // FIX: socket passed as parameter (not module-level variable)
+    // trickle: false — backend relays a single complete offer/answer per direction.
+    // Trickle ICE would require separate handling for each ICE candidate;
+    // the current user-joined guard would drop them, breaking the connection.
     function createPeer(userToSignal, callerID, stream, callerUserId, socket) {
         const peer = new Peer({ initiator: true, trickle: false, stream });
         peer.on('signal', (signal) => socket.emit('sending-signal', { userToSignal, callerID, signal, callerUserId }));
         peer.on('stream', (remoteStream) => {
             setRemoteStreams(prev => ({ ...prev, [userToSignal]: remoteStream }));
         });
-        peer.on('error', (err) => console.error("Peer error:", err));
+        peer.on('error', (err) => {
+            console.error("Peer error:", err);
+            toast.error(lang === 'uz' ? "Ulanishda xatolik. Internet yoki tarmoq muammosi bo'lishi mumkin." : lang === 'ru' ? "Ошибка подключения. Возможны проблемы с сетью." : "Connection error. Check your network.");
+        });
         return peer;
     }
 
@@ -543,7 +571,10 @@ const RoomPage = () => {
         peer.on('stream', (remoteStream) => {
             setRemoteStreams(prev => ({ ...prev, [callerID]: remoteStream }));
         });
-        peer.on('error', (err) => console.error("Peer error:", err));
+        peer.on('error', (err) => {
+            console.error("Peer error:", err);
+            toast.error(lang === 'uz' ? "Ulanishda xatolik. Internet yoki tarmoq muammosi bo'lishi mumkin." : lang === 'ru' ? "Ошибка подключения. Возможны проблемы с сетью." : "Connection error. Check your network.");
+        });
         peer.signal(incomingSignal);
         return peer;
     }
@@ -555,9 +586,11 @@ const RoomPage = () => {
                 const newEnabled = !audioTrack.enabled;
                 audioTrack.enabled = newEnabled;
                 setIsMuted(!newEnabled);
+                sessionStorage.setItem(`mic-${roomID}`, String(newEnabled));
                 socketRef.current?.emit('update-media-status', { roomId: roomID, micStatus: newEnabled });
             } else {
                 setIsMuted(true);
+                sessionStorage.setItem(`mic-${roomID}`, 'false');
             }
         }
     };
@@ -569,9 +602,11 @@ const RoomPage = () => {
                 const newEnabled = !videoTrack.enabled;
                 videoTrack.enabled = newEnabled;
                 setIsVideoOff(!newEnabled);
+                sessionStorage.setItem(`video-${roomID}`, String(newEnabled));
                 socketRef.current?.emit('update-media-status', { roomId: roomID, videoStatus: newEnabled });
             } else {
                 setIsVideoOff(true);
+                sessionStorage.setItem(`video-${roomID}`, 'false');
             }
         }
     };
@@ -594,6 +629,9 @@ const RoomPage = () => {
             const videoTrack = newStream.getVideoTracks()[0];
             const oldTrack = streamRef.current.getVideoTracks()[0];
 
+            // Preserve enabled state across device switch
+            if (videoTrack && oldTrack) videoTrack.enabled = oldTrack.enabled;
+
             peersRef.current.forEach(({ peer }) => {
                 if (oldTrack && videoTrack) peer.replaceTrack(oldTrack, videoTrack, streamRef.current);
             });
@@ -612,7 +650,6 @@ const RoomPage = () => {
     const switchAudio = async (deviceId) => {
         try {
             const constraints = {
-                video: selectedVideoDevice ? { deviceId: { exact: selectedVideoDevice } } : true,
                 audio: {
                     deviceId: { exact: deviceId },
                     echoCancellation: true,
@@ -631,6 +668,9 @@ const RoomPage = () => {
             const newStream = await navigator.mediaDevices.getUserMedia(constraints);
             const audioTrack = newStream.getAudioTracks()[0];
             const oldTrack = streamRef.current.getAudioTracks()[0];
+
+            // Preserve mute state across device switch
+            if (audioTrack && oldTrack) audioTrack.enabled = oldTrack.enabled;
 
             peersRef.current.forEach(({ peer }) => {
                 if (oldTrack && audioTrack) peer.replaceTrack(oldTrack, audioTrack, streamRef.current);
@@ -977,8 +1017,14 @@ const RoomPage = () => {
         if (ok) socketRef.current?.emit('end-meeting', { roomId: roomID });
     };
     const leaveRoom = () => {
+        // Tracks to'xtatish (kamera yorug'ligini o'chirish)
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current = null;
+        }
         socketRef.current?.emit('leave-room');
         socketRef.current?.disconnect();
+        socketRef.current = null; // cleanup useEffect ni qayta ishlatmaslik uchun
         navigate('/');
     };
 
