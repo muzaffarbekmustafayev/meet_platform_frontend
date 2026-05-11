@@ -136,7 +136,7 @@ const AdminPage = () => {
     const [sidebarOpen, setSidebar]   = useState(false);
     const [showModal, setShowModal]   = useState(false);
     const [editMode, setEditMode]     = useState(false);
-    const [currentUser, setCurrentUser] = useState({ name: '', email: '', password: '', username: '', role: 'user' });
+    const [currentUser, setCurrentUser] = useState({ name: '', email: '', password: '', role: 'user' });
     const [userSearch, setUserSearch] = useState('');
     const [userRole, setUserRole]     = useState('all');
     const [userStatus, setUserStatus] = useState('all');
@@ -216,7 +216,7 @@ const AdminPage = () => {
                 toast.success(t('create_btn'));
             }
             setShowModal(false);
-            setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' });
+            setCurrentUser({ name: '', email: '', password: '', role: 'user' });
             fetchData();
         } catch (err) {
             console.error('Save user error:', err);
@@ -225,7 +225,7 @@ const AdminPage = () => {
     };
 
     const openEdit = (u) => { setCurrentUser({ ...u, password: '' }); setEditMode(true); setShowModal(true); };
-    const openAdd  = () => { setCurrentUser({ name: '', email: '', password: '', username: '', role: 'user' }); setEditMode(false); setShowModal(true); };
+    const openAdd  = () => { setCurrentUser({ name: '', email: '', password: '', role: 'user' }); setEditMode(false); setShowModal(true); };
 
     const filteredUsers = users.filter(u => {
         const q = userSearch.toLowerCase();
@@ -663,9 +663,8 @@ const AdminPage = () => {
                         {/* Form */}
                         <form onSubmit={handleSaveUser} className="p-6 space-y-4">
                             {[
-                                { label: t('full_name'),                                         key: 'name',     type: 'text',     required: true,      ph: t('name_placeholder') },
-                                { label: 'Email',                                                key: 'email',    type: 'email',    required: true,      ph: 'email@example.com' },
-                                { label: t('username'),                                          key: 'username', type: 'text',     required: false,     ph: 'username' },
+                                { label: t('full_name'),                                           key: 'name',     type: 'text',     required: true,      ph: t('name_placeholder') },
+                                { label: 'Email',                                                  key: 'email',    type: 'email',    required: true,      ph: 'email@example.com' },
                                 { label: editMode ? t('password_edit_hint') : t('password_label'), key: 'password', type: 'password', required: !editMode, ph: '••••••••' },
                             ].map(f => (
                                 <div key={f.key}>

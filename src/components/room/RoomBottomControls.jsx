@@ -126,8 +126,8 @@ const RoomBottomControls = ({
     );
 
     // ── Generic icon button ──
-    const CtrlBtn = ({ icon, label, onClick, active = false, disabled = false, title, className: cls = '' }) => (
-        <div className={`hidden sm:flex flex-col items-center gap-1 ${cls}`}>
+    const CtrlBtn = ({ icon, label, onClick, active = false, disabled = false, title, mobileHidden = false, className: cls = '' }) => (
+        <div className={`${mobileHidden ? 'hidden sm:flex' : 'flex'} flex-col items-center gap-1 ${cls}`}>
             <button
                 onClick={onClick}
                 disabled={disabled}
@@ -147,7 +147,7 @@ const RoomBottomControls = ({
     const isGuest = myRole === 'guest';
 
     return (
-        <div className="relative room-bottom-bar z-50 bg-[#17191f] border-t border-white/6 flex items-center justify-between px-2 sm:px-5 md:px-8 py-2.5 md:py-3 min-h-[64px]">
+        <div className="relative room-bottom-bar z-50 bg-[#17191f] border-t border-white/6 flex items-center justify-between px-1.5 sm:px-5 md:px-8 py-2 md:py-3 min-h-[60px] md:min-h-[64px]">
 
             {/* Left: Meeting ID */}
             <div className="hidden md:flex items-center min-w-[150px]">
@@ -214,51 +214,45 @@ const RoomBottomControls = ({
                         <div className="hidden sm:block w-px h-10 bg-white/8 mx-1" />
 
                         {/* Screen share — single click, browser picker handles source + audio toggle */}
-                        <div className="hidden sm:flex flex-col items-center gap-1">
-                            <button
-                                onClick={handleShareClick}
-                                title={isSharingScreen ? t('ctl_stop_sharing') : t('ctl_share_screen')}
-                                aria-label={isSharingScreen ? t('ctl_stop_sharing') : t('ctl_share_screen')}
-                                aria-pressed={isSharingScreen}
-                                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-150 active:scale-95
-                                    ${isSharingScreen ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25' : 'bg-white/10 hover:bg-white/16 group'}`}
-                            >
-                                {isSharingScreen
-                                    ? <MonitorOff size={18} className="text-white" />
-                                    : <MonitorUp size={18} className="text-gray-300 group-hover:text-white transition-colors" />}
-                            </button>
-                            <span className={`text-[9px] font-semibold tracking-wide select-none ${isSharingScreen ? 'text-blue-400' : 'text-gray-500'}`}>
-                                {isSharingScreen ? t('ctl_stop_share') : t('ctl_share')}
-                            </span>
-                        </div>
+                        <CtrlBtn
+                            icon={isSharingScreen ? <MonitorOff size={18} className="text-white" /> : <MonitorUp size={18} />}
+                            label={isSharingScreen ? t('ctl_stop_share') : t('ctl_share')}
+                            onClick={handleShareClick}
+                            active={isSharingScreen}
+                            title={isSharingScreen ? t('ctl_stop_sharing') : t('ctl_share_screen')}
+                            mobileHidden={true}
+                        />
 
-                        {/* Record */}
+                        {/* Record — mobile'da More menuda */}
                         {canRecord && (
                             <CtrlBtn
                                 icon={isRecording ? <StopCircle size={18} className="animate-pulse" /> : <Circle size={18} />}
                                 label={isRecording ? t('ctl_stop_record') : t('ctl_record')}
                                 onClick={isRecording ? stopRecording : startRecording}
                                 active={isRecording}
+                                mobileHidden={true}
                                 title={isRecording ? t('ctl_stop_recording') : t('ctl_start_recording')}
                             />
                         )}
 
-                        {/* Raise Hand */}
+                        {/* Raise Hand — mobile'da More menuda */}
                         <CtrlBtn
                             icon={<Hand size={18} />}
                             label={t('ctl_raise')}
                             onClick={raiseHand}
+                            mobileHidden={true}
                             title={t('ctl_raise_hand')}
                         />
                     </>
                 )}
 
-                {/* Guests get a hand button only — they can't broadcast media */}
+                {/* Guests: raise hand — mobile'da More menuda */}
                 {isGuest && (
                     <CtrlBtn
                         icon={<Hand size={18} />}
                         label={t('ctl_raise')}
                         onClick={raiseHand}
+                        mobileHidden={true}
                         title={t('ctl_raise_hand')}
                     />
                 )}
@@ -294,16 +288,16 @@ const RoomBottomControls = ({
                 <div className="hidden sm:block w-px h-8 bg-white/8 mx-1.5" />
 
                 {/* Leave — host gets a popover with Leave / End for all */}
-                <div className="hidden sm:block relative" ref={leaveWrapRef}>
+                <div className="relative" ref={leaveWrapRef}>
                     <button
                         onClick={handleLeaveClick}
                         aria-label="Leave meeting"
                         aria-haspopup={isHost ? 'menu' : undefined}
                         aria-expanded={isHost ? leaveMenuOpen : undefined}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-colors duration-150 shadow-lg shadow-red-900/30"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-colors duration-150 shadow-lg shadow-red-900/30"
                     >
                         <PhoneOff size={15} />
-                        <span className="hidden md:inline">{t('ctl_leave')}</span>
+                        <span className="hidden sm:inline">{t('ctl_leave')}</span>
                     </button>
                     {isHost && leaveMenuOpen && (
                         <div role="menu" className="absolute bottom-full right-0 mb-2 w-56 bg-[#1e2028] border border-white/10 rounded-2xl p-2 shadow-2xl z-50">

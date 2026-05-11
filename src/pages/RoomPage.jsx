@@ -1222,7 +1222,7 @@ const RoomPage = () => {
                     </div>
 
                     {/* View mode toggle */}
-                    <div className="hidden md:flex items-center gap-0.5 p-1 rounded-xl bg-white/5 border border-white/8">
+                    <div className="flex items-center gap-0.5 p-1 rounded-xl bg-white/5 border border-white/8">
                         <button onClick={() => setViewMode('speaker')} title="Speaker view"
                             className={`rounded-lg p-1.5 transition-all ${viewMode === 'speaker' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
                             <Presentation size={14} />
@@ -1242,10 +1242,10 @@ const RoomPage = () => {
                 <div className="flex-1 flex flex-col p-1.5 sm:p-2.5 relative z-10 min-w-0">
                     {effectiveStageUser && viewMode === 'speaker' ? (
                     /* Zoom-style: stage + right thumbnail strip */
-                    <div className="flex-1 flex overflow-hidden animate-in fade-in duration-500 relative gap-2">
+                    <div className="flex-1 flex flex-col md:flex-row overflow-hidden animate-in fade-in duration-500 relative gap-2">
 
                         {/* ─── Main Stage ─── */}
-                        <div className="flex-1 min-w-0 min-h-0 relative bg-[#0b0d13] rounded-xl overflow-hidden shadow-2xl border border-white/6 flex items-center justify-center">
+                        <div className="w-full flex-1 md:flex-initial md:flex-1 min-h-[40vh] md:min-h-0 relative bg-[#0b0d13] rounded-xl overflow-hidden shadow-2xl border border-white/6 flex items-center justify-center">
 
                             {/* Stage video */}
                             {effectiveStageUser.socketId === socketRef.current?.id ? (
@@ -1316,17 +1316,17 @@ const RoomPage = () => {
                                 </div>
                             )}
 
-                            {/* ─── Floating Thumbnails (Mobile only, top-right overlay) ─── */}
-                            <div className="md:hidden absolute top-12 right-2 flex flex-col gap-1.5 z-20 max-h-[50%] overflow-y-auto scroll-smooth">
+                            {/* ─── Floating Thumbnails (Mobile only, horizontal strip) ─── */}
+                            <div className="md:hidden flex flex-row gap-2 overflow-x-auto w-full px-1 py-1.5 shrink-0 snap-x custom-scrollbar">
                                 {effectiveStageUser.socketId !== socketRef.current?.id && (
-                                    <div className="w-[86px] aspect-video bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
+                                    <div className="w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
                                         <Video stream={stream} userName="You" role={myRole} isLocal={true} userVideoStatus={!isVideoOff} />
                                     </div>
                                 )}
-                                {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).slice(0, 3).map((peerObj, idx) => {
+                                {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).map((peerObj, idx) => {
                                     const user = roomUsers.find(u => u.socketId === peerObj.peerID);
                                     return (
-                                        <div key={idx} className="relative w-[86px] aspect-video bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
+                                        <div key={idx} className="relative w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden border border-white/15 shadow-xl ring-1 ring-inset ring-white/5">
                                             <Video
                                                 stream={remoteStreams[peerObj.peerID]}
                                                 userName={user?.userName || 'Participant'}
@@ -1340,13 +1340,6 @@ const RoomPage = () => {
                                         </div>
                                     );
                                 })}
-                                {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).length > 3 && (
-                                    <div className="w-[86px] aspect-video bg-black/60 rounded-lg border border-white/15 flex items-center justify-center shadow-xl">
-                                        <span className="text-white text-xs font-bold">
-                                            +{uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).length - 3}
-                                        </span>
-                                    </div>
-                                )}
                             </div>
                         </div>
 
@@ -1399,7 +1392,7 @@ const RoomPage = () => {
                         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
                             {/* ─── Grid View Header ─── */}
-                            <div className="shrink-0 px-3 sm:px-5 pt-3 pb-2 flex items-center justify-between gap-3">
+                            <div className="shrink-0 px-2 sm:px-4 pt-2 pb-1.5 flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2.5">
                                     <div className="flex items-center gap-1.5 text-gray-400">
                                         <LayoutGrid size={14} />
@@ -1432,12 +1425,12 @@ const RoomPage = () => {
                             </div>
 
                             {/* ─── Tile Grid ─── */}
-                            <div className={`flex-1 min-h-0 grid gap-2 sm:gap-2.5 auto-rows-fr px-3 sm:px-5 pb-3 sm:pb-5
+                            <div className={`flex-1 min-h-0 grid gap-1.5 sm:gap-2 md:gap-2.5 auto-rows-fr px-1.5 sm:px-3 md:px-5 pb-1.5 sm:pb-3 md:pb-5
                                 ${gridClassMap[gridSize] || gridClassMap.auto}
                                 animate-in fade-in zoom-in-95 duration-400`}
                             >
                                 {/* Local user tile */}
-                                <div className={`relative min-h-0 rounded-2xl overflow-hidden transition-all duration-300 group
+                                <div className={`relative min-h-[160px] sm:min-h-0 rounded-2xl overflow-hidden transition-all duration-300 group
                                     bg-gradient-to-br from-[#0d1018] to-[#0b0d13]
                                     ${isHost
                                         ? 'shadow-[0_0_0_2px_rgba(59,130,246,0.45),0_8px_32px_rgba(0,0,0,0.5)]'
@@ -1492,7 +1485,7 @@ const RoomPage = () => {
                                     return (
                                         <div
                                             key={peerObj.peerID || index}
-                                            className={`relative min-h-0 rounded-2xl overflow-hidden transition-all duration-300 group animate-in fade-in zoom-in-95 duration-400
+                                            className={`relative min-h-[160px] sm:min-h-0 rounded-2xl overflow-hidden transition-all duration-300 group animate-in fade-in zoom-in-95 duration-400
                                                 bg-gradient-to-br from-[#0d1018] to-[#0b0d13]
                                                 ${isUserHost
                                                     ? 'shadow-[0_0_0_2px_rgba(59,130,246,0.45),0_8px_32px_rgba(0,0,0,0.5)]'
@@ -1552,9 +1545,17 @@ const RoomPage = () => {
                     )}
                 </div>
 
+                {/* Sidebar Overlay for Mobile */}
+                {(showChat || showParticipants) && (
+                    <div
+                        className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+                        onClick={() => { setShowChat(false); setShowParticipants(false); }}
+                    />
+                )}
+
                 {/* Sidebar (Chat/Members) */}
                 {(showChat || showParticipants) && (
-                    <aside className={`absolute inset-y-0 right-0 w-full xs:w-[320px] z-50 md:static md:w-[280px] lg:w-[320px] shrink-0 h-full bg-[#0d0f15] border-l border-white/6 flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.6)] animate-in slide-in-from-right duration-300`}>
+                    <aside className={`absolute inset-y-0 right-0 w-full sm:w-[320px] z-50 md:static md:w-[280px] lg:w-[320px] shrink-0 h-full bg-[#0d0f15] border-l border-white/6 flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.6)] animate-in slide-in-from-right duration-300`}>
                         {/* Sidebar Header — Zoom style */}
                         {showParticipants && (
                             <div className="shrink-0 flex items-center justify-between px-4 h-14 border-b border-white/6">
@@ -1645,7 +1646,7 @@ const RoomPage = () => {
                                                         ? <div className="p-1 rounded-lg bg-emerald-500/10"><VideoIcon size={11} className="text-emerald-400" /></div>
                                                         : <div className="p-1 rounded-lg bg-gray-500/10"><VideoOff size={11} className="text-gray-500" /></div>}
                                                     {canModerate && !isMe && (
-                                                        <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                                        <div className="flex items-center gap-0.5 ml-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
                                                             <button onClick={() => giveTurn(user.userId)} title={isSpotlit ? 'Remove Spotlight' : 'Spotlight'} className={`p-1.5 rounded-lg transition-all ${isSpotlit ? 'bg-blue-500/20 text-blue-400' : 'hover:bg-white/10 text-gray-500 hover:text-white'}`}>
                                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z" strokeWidth="2.5" strokeLinejoin="round" /></svg>
                                                             </button>

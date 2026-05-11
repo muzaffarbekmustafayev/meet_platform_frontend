@@ -56,7 +56,6 @@ const translations = {
         // Auth specific
         login_title: "Log in to Account",
         register_title: "Create Account",
-        username: "Username",
         remember_me: "Remember",
         forgot_password: "Forgot?",
         or_continue_with: "or continue with",
@@ -263,7 +262,6 @@ const translations = {
         // Auth specific
         login_title: "Tizimga kirish",
         register_title: "Hisob yaratish",
-        username: "Foydalanuvchi nomi",
         remember_me: "Eslab qolish",
         forgot_password: "Unutdingizmi?",
         or_continue_with: "yoki davom eting",
@@ -461,7 +459,6 @@ const translations = {
         // Auth specific
         login_title: "Вход в аккаунт",
         register_title: "Создать аккаунт",
-        username: "Имя пользователя",
         remember_me: "Запомнить",
         forgot_password: "Забыли?",
         or_continue_with: "или продолжить через",

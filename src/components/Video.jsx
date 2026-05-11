@@ -103,10 +103,10 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
 
             {/* Avatar circle */}
             <div className={`relative bg-gradient-to-br ${avatarGradient} rounded-2xl flex items-center justify-center shadow-2xl
-                ${isStage ? 'w-28 h-28 rounded-3xl' : 'w-16 h-16 rounded-2xl'}`}
+                ${isStage ? 'w-24 h-24 sm:w-28 sm:h-28 rounded-3xl' : 'w-12 h-12 sm:w-16 sm:h-16 rounded-2xl'}`}
                 style={{ boxShadow: `0 8px 32px rgba(0,0,0,0.4)` }}
             >
-                <span className={`font-black text-white tracking-tight ${isStage ? 'text-4xl' : 'text-xl'}`}>{initials}</span>
+                <span className={`font-black text-white tracking-tight ${isStage ? 'text-3xl sm:text-4xl' : 'text-lg sm:text-xl'}`}>{initials}</span>
                 {hasTurn && (
                     <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[#0e1016] animate-pulse shadow-lg shadow-emerald-500/40" />
                 )}
@@ -119,7 +119,7 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
                 </p>
                 <div className="flex items-center gap-1.5">
                     {(isHost || isCoHost || isGuest) && (
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider
+                        <span className={`hidden sm:inline-flex px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider
                             ${isHost ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                             : isCoHost ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                             : 'bg-white/8 text-gray-400 border border-white/10'}`}>
@@ -161,8 +161,8 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-[#0e1016] gap-3">
                     <div className={`bg-gradient-to-br ${avatarGradient} rounded-2xl flex items-center justify-center opacity-20
-                        ${isStage ? 'w-20 h-20' : 'w-12 h-12'}`}>
-                        <span className={`font-black text-white ${isStage ? 'text-2xl' : 'text-base'}`}>{initials}</span>
+                        ${isStage ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-10 h-10 sm:w-12 sm:h-12'}`}>
+                        <span className={`font-black text-white ${isStage ? 'text-xl sm:text-2xl' : 'text-sm sm:text-base'}`}>{initials}</span>
                     </div>
                     <div className="flex flex-col items-center gap-1.5">
                         <div className="w-5 h-5 border-2 border-blue-500/25 border-t-blue-500/70 rounded-full animate-spin" />
@@ -193,9 +193,9 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
                         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                             audioEnabled ? 'bg-emerald-400' : 'bg-red-400'
                         } ${audioEnabled && !isLocal ? 'animate-pulse' : ''}`} />
-                        <span className="text-[10px] font-semibold text-white/90 truncate">{userName}</span>
-                        {isHost && <span className="text-[8px] font-bold text-blue-400 uppercase tracking-wider shrink-0">HOST</span>}
-                        {isCoHost && <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider shrink-0">CO-HOST</span>}
+                        <span className="text-[10px] font-semibold text-white/90 truncate max-w-[60px] sm:max-w-none">{userName}</span>
+                        {isHost && <span className="hidden sm:inline text-[8px] font-bold text-blue-400 uppercase tracking-wider shrink-0">HOST</span>}
+                        {isCoHost && <span className="hidden sm:inline text-[8px] font-bold text-emerald-400 uppercase tracking-wider shrink-0">CO-HOST</span>}
                         {hasTurn && <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wider shrink-0">• Speaking</span>}
                     </div>
                     {showVideo && (
