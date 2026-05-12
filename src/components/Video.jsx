@@ -1,5 +1,6 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useContext } from 'react';
 import { Mic, MicOff, Video as VideoIcon, VideoOff, Maximize2, Minimize2 } from 'lucide-react';
+import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
 
 // Generate a consistent gradient for each username
 const getAvatarGradient = (name = '') => {
@@ -18,8 +19,12 @@ const getAvatarGradient = (name = '') => {
     return gradients[Math.abs(hash) % gradients.length];
 };
 
-const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoStatus = true }) => {
+const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoStatus = true, isSpeaking = false }) => {
     const ref = useRef();
+    const { theme } = useContext(ThemeLanguageContext);
+    const isDark = theme === 'dark';
+    const tileBg = isDark ? 'bg-[#0e1016]' : 'bg-[#1c2030]';
+    const borderDefault = isDark ? 'border-white/8 hover:border-white/18' : 'border-gray-500/35 hover:border-gray-400/50';
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [videoEnabled, setVideoEnabled] = useState(false);
     const [audioEnabled, setAudioEnabled] = useState(false);
@@ -97,7 +102,7 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
         .toUpperCase() || '?';
 
     const AvatarFallback = () => (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0e1016] z-10 select-none">
+        <div className={`absolute inset-0 flex flex-col items-center justify-center ${tileBg} z-10 select-none`}>
             {/* Subtle background glow */}
             <div className={`absolute inset-0 bg-gradient-to-br ${avatarGradient} opacity-[0.04]`} />
 
@@ -108,7 +113,7 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
             >
                 <span className={`font-black text-white tracking-tight ${isStage ? 'text-3xl sm:text-4xl' : 'text-lg sm:text-xl'}`}>{initials}</span>
                 {hasTurn && (
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[#0e1016] animate-pulse shadow-lg shadow-emerald-500/40" />
+                    <span className={`absolute -top-1.5 -right-1.5 w-4 h-4 bg-emerald-500 rounded-full border-2 ${isDark ? 'border-[#0e1016]' : 'border-[#1c2030]'} animate-pulse shadow-lg shadow-emerald-500/40`} />
                 )}
             </div>
 
@@ -138,14 +143,15 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
     );
 
     return (
-        <div className={`relative w-full h-full bg-[#0e1016] overflow-hidden group transition-all duration-300
+        <div className={`relative w-full h-full overflow-hidden group transition-all duration-300 ${tileBg}
             ${!isStage ? `rounded-2xl border ${
-                hasTurn ? 'border-emerald-500/50 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
+                isSpeaking ? 'border-emerald-400/60 shadow-[0_0_14px_rgba(52,211,153,0.18)]'
+                : hasTurn ? 'border-emerald-500/50 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
                 : audioEnabled && !isLocal ? 'border-blue-500/30'
                 : isHost ? 'border-blue-500/25'
                 : isCoHost ? 'border-emerald-500/25'
-                : 'border-white/8 hover:border-white/18'
-            }` : ''}
+                : borderDefault
+            }` : isSpeaking ? 'ring-2 ring-inset ring-emerald-400/50' : ''}
         `}>
             {stream ? (
                 <>
@@ -155,11 +161,12 @@ const Video = ({ stream, userName, role, hasTurn, isStage, isLocal, userVideoSta
                             ? (isStage ? 'object-contain block' : 'object-cover block')
                             : 'hidden'
                         }`}
+                        style={isLocal ? { transform: 'scaleX(-1)' } : undefined}
                     />
                     {!showVideo && <AvatarFallback />}
                 </>
             ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-[#0e1016] gap-3">
+                <div className={`w-full h-full flex flex-col items-center justify-center ${tileBg} gap-3`}>
                     <div className={`bg-gradient-to-br ${avatarGradient} rounded-2xl flex items-center justify-center opacity-20
                         ${isStage ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-10 h-10 sm:w-12 sm:h-12'}`}>
                         <span className={`font-black text-white ${isStage ? 'text-xl sm:text-2xl' : 'text-sm sm:text-base'}`}>{initials}</span>

@@ -894,7 +894,7 @@ const HomeView = ({ t, lang, userInfo, onNav, history = [] }) => {
                                     : d.toLocaleDateString(lang === 'uz' ? 'uz-UZ' : lang === 'ru' ? 'ru-RU' : 'en-US', { month: 'short', day: 'numeric' });
                                 return (
                                     <div key={m._id} onClick={() => navigate(`/room/${m.meetingCode}`)}
-                                        className="group flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-white/4 cursor-pointer transition-colors">
+                                        className="group flex items-center gap-4 px-6 py-4 hover:bg-[var(--surface-2)] cursor-pointer transition-colors">
                                         <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                                         </div>

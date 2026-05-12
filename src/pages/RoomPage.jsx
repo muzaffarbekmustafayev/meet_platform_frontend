@@ -16,6 +16,7 @@ import {
     Monitor, Volume2, MoreVertical, ChevronDown, PhoneOff, Wifi, Pin, LayoutGrid, Presentation
 } from 'lucide-react';
 import LanguageToggle from '../components/LanguageToggle';
+import ThemeToggle from '../components/ThemeToggle';
 import { ThemeLanguageContext } from '../context/ThemeLanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -25,7 +26,8 @@ import { useConfirm } from '../components/ConfirmModal';
 const RoomPage = () => {
     const { id: roomID } = useParams();
     const navigate = useNavigate();
-    const { t, lang } = useContext(ThemeLanguageContext);
+    const { t, lang, theme } = useContext(ThemeLanguageContext);
+    const isDark = theme === 'dark';
     const { user: authUser } = useAuth();
     const toast = useToast();
     const { confirm, modal: confirmModal } = useConfirm();
@@ -109,6 +111,11 @@ const RoomPage = () => {
     const audioDestinationRef = useRef(null);
     const micAudioCtxRef = useRef(null);   // Web Audio processing context for mic
     const rawMicTrackRef = useRef(null);   // original getUserMedia audio track (kept alive for AudioContext)
+    const localAnalyserRef = useRef(null); // AnalyserNode for local mic VAD
+    const remoteAnalysersRef = useRef({}); // socketId → { ctx, analyser }
+    const speakingRafRef = useRef(null);   // requestAnimationFrame handle for VAD loop
+    const activeSpeakersRef = useRef(new Set());
+    const [activeSpeakers, setActiveSpeakers] = useState(new Set());
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const messagesEndRef = useRef(null);
@@ -190,6 +197,70 @@ const RoomPage = () => {
         const intervalId = setInterval(tick, 1000);
         return () => clearInterval(intervalId);
     }, [meeting?.startTime, formatDuration]);
+
+    // Remote stream uchun AnalyserNode yaratish/tozalash
+    useEffect(() => {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const current = remoteAnalysersRef.current;
+
+        for (const sid of Object.keys(current)) {
+            if (!remoteStreams[sid]) {
+                current[sid].ctx.close().catch(() => {});
+                delete current[sid];
+            }
+        }
+        for (const [sid, s] of Object.entries(remoteStreams)) {
+            if (current[sid] || !s.getAudioTracks().length) continue;
+            try {
+                const ctx = new AudioCtx();
+                const analyser = ctx.createAnalyser();
+                analyser.fftSize = 512;
+                analyser.smoothingTimeConstant = 0.4;
+                ctx.createMediaStreamSource(s).connect(analyser);
+                current[sid] = { ctx, analyser };
+            } catch (_) {}
+        }
+    }, [remoteStreams]);
+
+    // VAD polling loop — gapiruvchi foydalanuvchini aniqlash
+    useEffect(() => {
+        const THRESH_LOCAL = 15;
+        const THRESH_REMOTE = 8;
+        const buf = new Uint8Array(512);
+        const calcRMS = (d) => {
+            let s = 0;
+            for (let i = 0; i < d.length; i++) s += (d[i] - 128) ** 2;
+            return Math.sqrt(s / d.length);
+        };
+        const poll = () => {
+            const next = new Set();
+            if (localAnalyserRef.current && streamRef.current?.getAudioTracks()[0]?.enabled) {
+                localAnalyserRef.current.getByteTimeDomainData(buf);
+                if (calcRMS(buf) > THRESH_LOCAL) next.add('__local__');
+            }
+            for (const [sid, { analyser }] of Object.entries(remoteAnalysersRef.current)) {
+                try {
+                    analyser.getByteTimeDomainData(buf);
+                    if (calcRMS(buf) > THRESH_REMOTE) next.add(sid);
+                } catch (_) {}
+            }
+            const prev = activeSpeakersRef.current;
+            const changed = next.size !== prev.size || [...next].some(s => !prev.has(s)) || [...prev].some(s => !next.has(s));
+            if (changed) {
+                activeSpeakersRef.current = next;
+                setActiveSpeakers(new Set(next));
+            }
+            speakingRafRef.current = requestAnimationFrame(poll);
+        };
+        speakingRafRef.current = requestAnimationFrame(poll);
+        return () => { if (speakingRafRef.current) cancelAnimationFrame(speakingRafRef.current); };
+    }, []);
+
+    // Ekran ulashish boshlanganida avtomatik Speaker viewga o'tish
+    useEffect(() => {
+        if (activeSharingUser) setViewMode('speaker');
+    }, [activeSharingUser]);
 
     useEffect(() => {
         const updateNetwork = () => {
@@ -459,6 +530,7 @@ const RoomPage = () => {
                     if (result) {
                         micAudioCtxRef.current = result.ctx;
                         rawMicTrackRef.current = rawAudio;
+                        localAnalyserRef.current = result.analyser;
                         result.processedTrack.enabled = micEnabled;
                         currentStream.removeTrack(rawAudio);
                         currentStream.addTrack(result.processedTrack);
@@ -518,6 +590,12 @@ const RoomPage = () => {
                 socket.disconnect();
                 socketRef.current = null;
             }
+            // VAD polling loop ni to'xtatish
+            if (speakingRafRef.current) cancelAnimationFrame(speakingRafRef.current);
+            // Remote stream analyserlarni yopish
+            Object.values(remoteAnalysersRef.current).forEach(({ ctx }) => ctx.close().catch(() => {}));
+            remoteAnalysersRef.current = {};
+            localAnalyserRef.current = null;
             // Mic audio processing context ni yopish
             if (micAudioCtxRef.current) {
                 micAudioCtxRef.current.close().catch(() => {});
@@ -599,15 +677,21 @@ const RoomPage = () => {
             const gain = ctx.createGain();
             gain.gain.value = 1.3;
 
+            // AnalyserNode — VAD (voice activity detection) uchun signal kuzatadi
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 512;
+            analyser.smoothingTimeConstant = 0.4;
+
             const destination = ctx.createMediaStreamDestination();
             const source = ctx.createMediaStreamSource(new MediaStream([rawAudioTrack]));
 
             source.connect(highPass);
             highPass.connect(compressor);
             compressor.connect(gain);
-            gain.connect(destination);
+            gain.connect(analyser);
+            analyser.connect(destination);
 
-            return { ctx, processedTrack: destination.stream.getAudioTracks()[0] };
+            return { ctx, processedTrack: destination.stream.getAudioTracks()[0], analyser };
         } catch (e) {
             console.error('Audio processing setup failed:', e);
             return null;
@@ -745,6 +829,7 @@ const RoomPage = () => {
                 rawMicTrackRef.current.stop();
                 rawMicTrackRef.current = null;
             }
+            localAnalyserRef.current = null;
 
             // Yangi qurilma uchun processing qayta qurish
             let trackToUse = rawNewAudio;
@@ -753,6 +838,7 @@ const RoomPage = () => {
                 if (result) {
                     micAudioCtxRef.current = result.ctx;
                     rawMicTrackRef.current = rawNewAudio;
+                    localAnalyserRef.current = result.analyser;
                     result.processedTrack.enabled = prevEnabled;
                     trackToUse = result.processedTrack;
                 }
@@ -1135,6 +1221,25 @@ const RoomPage = () => {
         socketRef.current?.emit('update-media-status', { roomId: roomID, micStatus: false });
     };
 
+    // Space bar hold-to-talk (chat yoki input fokusda bo'lmasa ishlaydi)
+    useEffect(() => {
+        if (!myRole || myRole === 'guest') return;
+        const onDown = (e) => {
+            const tag = document.activeElement?.tagName;
+            if (e.code === 'Space' && !e.repeat && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+                e.preventDefault();
+                handleHoldToTalkStart();
+            }
+        };
+        const onUp = (e) => { if (e.code === 'Space') handleHoldToTalkEnd(); };
+        document.addEventListener('keydown', onDown);
+        document.addEventListener('keyup', onUp);
+        return () => {
+            document.removeEventListener('keydown', onDown);
+            document.removeEventListener('keyup', onUp);
+        };
+    }, [myRole, isMuted]); // isMuted kerak: handleHoldToTalkStart uni tekshiradi
+
     const getStageUser = () => {
         if (!meeting) return null;
         // If someone is screen sharing, they are always the stage user
@@ -1313,7 +1418,7 @@ const RoomPage = () => {
     }
 
     return (
-        <div className="flex flex-col room-fullheight bg-[#0c0e14] text-white font-sans overflow-hidden">
+        <div className={`flex flex-col room-fullheight font-sans overflow-hidden ${isDark ? 'bg-[#0c0e14] text-white' : 'bg-gray-100 text-gray-900'}`}>
             {/* General toast */}
             {toastMessage && (
                 <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
@@ -1358,7 +1463,7 @@ const RoomPage = () => {
             )}
             
             {/* Top Bar — Zoom minimal style */}
-            <header className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-5 bg-[#13151c] border-b border-white/[0.06] z-40 shrink-0">
+            <header className={`h-12 sm:h-14 flex items-center justify-between px-3 sm:px-5 z-40 shrink-0 ${isDark ? 'bg-[#13151c] border-b border-white/[0.06]' : 'bg-white border-b border-gray-200'}`}>
                 {/* Left: Live dot + Room name + Timer */}
                 <div className="flex items-center gap-2 overflow-hidden min-w-0">
                     {/* Live indicator */}
@@ -1370,11 +1475,11 @@ const RoomPage = () => {
                         <span className="hidden xs:block text-[10px] font-bold uppercase tracking-[0.12em] text-red-500">Live</span>
                     </div>
 
-                    <div className="w-px h-4 bg-white/10 shrink-0" />
+                    <div className={`w-px h-4 shrink-0 ${isDark ? 'bg-white/10' : 'bg-gray-200'}`} />
 
                     {/* Room title + ID */}
                     <div className="flex flex-col min-w-0">
-                        <h1 className="text-xs sm:text-sm font-semibold text-white/90 tracking-tight truncate max-w-[120px] xs:max-w-[180px] sm:max-w-none">
+                        <h1 className={`text-xs sm:text-sm font-semibold tracking-tight truncate max-w-[120px] xs:max-w-[180px] sm:max-w-none ${isDark ? 'text-white/90' : 'text-gray-900'}`}>
                             {meeting?.title || 'Tayyorlanmoqda...'}
                         </h1>
                         <button
@@ -1393,7 +1498,7 @@ const RoomPage = () => {
                     </div>
 
                     {/* Timer — xs+ */}
-                    <div className="hidden xs:flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-lg bg-white/5 border border-white/5">
+                    <div className={`hidden xs:flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-lg ${isDark ? 'bg-white/5 border border-white/5' : 'bg-gray-100 border border-gray-200'}`}>
                         <Clock size={10} className="text-gray-500" />
                         <span className="text-[10px] font-mono font-semibold text-gray-400 tabular-nums">{meetingElapsed}</span>
                     </div>
@@ -1401,16 +1506,16 @@ const RoomPage = () => {
                     {/* Role badge — sm+ */}
                     {myRole && (
                         <span className={`hidden sm:inline-flex px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border shrink-0
-                            ${myRole === 'host' ? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
-                            : myRole === 'cohost' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                            : myRole === 'guest' ? 'bg-white/5 border-white/10 text-gray-500'
-                            : 'bg-white/5 border-white/10 text-gray-400'}`}>
+                            ${myRole === 'host' ? 'bg-blue-500/15 border-blue-500/30 text-blue-500'
+                            : myRole === 'cohost' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
+                            : isDark ? 'bg-white/5 border-white/10 text-gray-400'
+                            : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
                             {myRole}
                         </span>
                     )}
 
                     {/* Participant count — md+ */}
-                    <div className="hidden md:flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg bg-white/5">
+                    <div className={`hidden md:flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg ${isDark ? 'bg-white/5' : 'bg-gray-100'}`}>
                         <Users size={10} className="text-gray-500" />
                         <span className="text-[10px] font-semibold text-gray-500">{totalParticipantCount}</span>
                     </div>
@@ -1434,7 +1539,7 @@ const RoomPage = () => {
                     <div className="relative" ref={viewMenuRef}>
                         <button
                             onClick={() => setViewMenuOpen(!viewMenuOpen)}
-                            className="flex items-center gap-1.5 h-8 sm:h-9 px-2 sm:px-3 rounded-xl bg-white/5 border border-white/8 text-gray-300 hover:bg-white/10 transition-all"
+                            className={`flex items-center gap-1.5 h-8 sm:h-9 px-2 sm:px-3 rounded-xl transition-all ${isDark ? 'bg-white/5 border border-white/8 text-gray-300 hover:bg-white/10' : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200'}`}
                         >
                             {viewMode === 'speaker' ? <Presentation size={13} className="text-blue-400" /> : <LayoutGrid size={13} className="text-blue-400" />}
                             <span className="hidden sm:inline text-[11px] font-bold">{viewMode === 'speaker' ? 'Speaker' : 'Gallery'}</span>
@@ -1442,17 +1547,17 @@ const RoomPage = () => {
                         </button>
 
                         {viewMenuOpen && (
-                            <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#1e222d] border border-white/10 shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                            <div className={`absolute right-0 mt-2 w-52 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200 ${isDark ? 'bg-[#1e222d] border border-white/10' : 'bg-white border border-gray-200'}`}>
                                 <div className="px-3 py-1 mb-1 text-[10px] font-black text-gray-500 uppercase tracking-widest">Layout</div>
                                 <button
                                     onClick={() => { setViewMode('speaker'); setViewMenuOpen(false); }}
-                                    className={`w-full flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${viewMode === 'speaker' ? 'bg-blue-600/10 text-blue-400' : 'text-gray-300 hover:bg-white/5'}`}
+                                    className={`w-full flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${viewMode === 'speaker' ? 'bg-blue-600/10 text-blue-500' : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'}`}
                                 >
                                     <Presentation size={14} /> Speaker View
                                 </button>
                                 <button
                                     onClick={() => { setViewMode('grid'); setViewMenuOpen(false); }}
-                                    className={`w-full flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${viewMode === 'grid' ? 'bg-blue-600/10 text-blue-400' : 'text-gray-300 hover:bg-white/5'}`}
+                                    className={`w-full flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${viewMode === 'grid' ? 'bg-blue-600/10 text-blue-500' : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'}`}
                                 >
                                     <LayoutGrid size={14} /> Gallery View
                                 </button>
@@ -1481,6 +1586,7 @@ const RoomPage = () => {
                         )}
                     </div>
 
+                    <ThemeToggle compact />
                     <LanguageToggle compact />
                 </div>
             </header>
@@ -1493,7 +1599,7 @@ const RoomPage = () => {
                     <div className="flex-1 flex flex-col md:flex-row overflow-hidden animate-in fade-in duration-500 relative gap-2">
 
                         {/* ─── Main Stage ─── */}
-                        <div className="w-full flex-1 md:flex-initial md:flex-1 min-h-[40vh] md:min-h-0 relative bg-[#0b0d13] rounded-xl overflow-hidden shadow-2xl border border-white/6 flex items-center justify-center">
+                        <div className={`w-full flex-1 md:flex-initial md:flex-1 min-h-[40vh] md:min-h-0 relative rounded-xl overflow-hidden shadow-2xl flex items-center justify-center ${isDark ? 'bg-[#0b0d13] border border-white/6' : 'bg-[#1a1d26] border border-gray-500/30'}`}>
 
                             {/* Stage video */}
                             {effectiveStageUser.socketId === socketRef.current?.id ? (
@@ -1567,20 +1673,24 @@ const RoomPage = () => {
                         </div>
 
                         {/* ─── Mobile thumbnail strip ─── */}
-                        <div className="md:hidden flex flex-row gap-1.5 overflow-x-auto w-full px-1 py-1.5 shrink-0 snap-x custom-scrollbar bg-black/30 backdrop-blur-sm rounded-xl border border-white/[0.06] mt-auto">
+                        <div className={`md:hidden flex flex-row gap-1.5 overflow-x-auto w-full px-1 py-1.5 shrink-0 snap-x custom-scrollbar backdrop-blur-sm rounded-xl mt-auto ${isDark ? 'bg-black/30 border border-white/[0.06]' : 'bg-gray-800/30 border border-gray-500/30'}`}>
                             {effectiveStageUser.socketId !== socketRef.current?.id && (
-                                <div className="w-[88px] xs:w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-lg">
-                                    <Video stream={stream} userName="You" role={myRole} isLocal={true} userVideoStatus={!isVideoOff} />
+                                <div className={`w-[88px] xs:w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden shadow-lg
+                                    ${activeSpeakers.has('__local__') ? 'ring-2 ring-emerald-400/70' : 'ring-1 ring-white/10'}`}>
+                                    <Video stream={stream} userName="You" role={myRole} isLocal={true} isSpeaking={activeSpeakers.has('__local__')} userVideoStatus={!isVideoOff} />
                                 </div>
                             )}
                             {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).map((peerObj, idx) => {
                                 const user = roomUsers.find(u => u.socketId === peerObj.peerID);
+                                const spk = activeSpeakers.has(peerObj.peerID);
                                 return (
-                                    <div key={idx} className="relative w-[88px] xs:w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-lg">
+                                    <div key={idx} className={`relative w-[88px] xs:w-[100px] sm:w-[110px] aspect-video shrink-0 snap-center bg-[#0e1016] rounded-lg overflow-hidden shadow-lg
+                                        ${spk ? 'ring-2 ring-emerald-400/70' : 'ring-1 ring-white/10'}`}>
                                         <Video
                                             stream={remoteStreams[peerObj.peerID]}
                                             userName={user?.userName || 'Participant'}
                                             role={user?.role}
+                                            isSpeaking={spk}
                                             isLocal={false}
                                             userVideoStatus={user?.videoStatus !== false}
                                         />
@@ -1597,8 +1707,9 @@ const RoomPage = () => {
 
                             {/* My tile */}
                             {effectiveStageUser.socketId !== socketRef.current?.id && (
-                                <div className="relative shrink-0 aspect-video bg-[#0e1016] rounded-xl overflow-hidden border border-white/8 hover:border-blue-500/40 shadow-md transition-all duration-200 cursor-pointer group">
-                                    <Video stream={stream} userName="You" role={myRole} isLocal={true} userVideoStatus={!isVideoOff} />
+                                <div className={`relative shrink-0 aspect-video bg-[#0e1016] rounded-xl overflow-hidden shadow-md transition-all duration-200 cursor-pointer group
+                                    ${activeSpeakers.has('__local__') ? 'border-2 border-emerald-400/70' : isDark ? 'border border-white/8 hover:border-blue-500/40' : 'border border-gray-500/40 hover:border-blue-500/60'}`}>
+                                    <Video stream={stream} userName="You" role={myRole} isLocal={true} isSpeaking={activeSpeakers.has('__local__')} userVideoStatus={!isVideoOff} />
                                     {handRaisedUsers.includes(userInfo._id) && (
                                         <div className="absolute top-1.5 right-1.5 bg-amber-500/80 backdrop-blur-sm rounded-md p-0.5 animate-in zoom-in text-[10px]">✋</div>
                                     )}
@@ -1609,17 +1720,20 @@ const RoomPage = () => {
                             {/* Other participants */}
                             {uniquePeers.filter(p => p.peerID !== effectiveStageUser.socketId).map((peerObj, index) => {
                                 const user = roomUsers.find(u => u.socketId === peerObj.peerID);
+                                const spk = activeSpeakers.has(peerObj.peerID);
                                 return (
                                     <div
                                         key={index}
                                         onClick={() => setPinnedSocketId(pinnedSocketId === peerObj.peerID ? null : peerObj.peerID)}
-                                        className="relative shrink-0 aspect-video bg-[#0e1016] rounded-xl overflow-hidden border border-white/8 hover:border-blue-500/40 shadow-md transition-all duration-200 cursor-pointer group"
+                                        className={`relative shrink-0 aspect-video bg-[#0e1016] rounded-xl overflow-hidden shadow-md transition-all duration-200 cursor-pointer group
+                                            ${spk ? 'border-2 border-emerald-400/70' : isDark ? 'border border-white/8 hover:border-blue-500/40' : 'border border-gray-500/40 hover:border-blue-500/60'}`}
                                     >
                                         <Video
                                             stream={remoteStreams[peerObj.peerID]}
                                             userName={user?.userName || 'Participant'}
                                             role={user?.role}
                                             hasTurn={peerObj.userId === currentTurnUserId}
+                                            isSpeaking={spk}
                                             isLocal={false}
                                             userVideoStatus={user?.videoStatus !== false}
                                         />
@@ -1638,9 +1752,22 @@ const RoomPage = () => {
                         </div>
                     </div>
                     ) : (
-                        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                        <div className="flex-1 flex flex-col overflow-hidden min-h-0 relative">
 
-
+                            {/* "Waiting for others" — yolg'iz bo'lganda */}
+                            {totalParticipantCount === 1 && (
+                                <div className="absolute inset-0 flex items-end justify-center pb-24 pointer-events-none z-20">
+                                    <div className={`flex items-center gap-2.5 backdrop-blur-md px-5 py-3 rounded-2xl shadow-xl ${isDark ? 'bg-black/55 border border-white/10' : 'bg-gray-900/80 border border-gray-600/40'}`}>
+                                        <span className="relative flex h-2 w-2 shrink-0">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60" />
+                                            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
+                                        </span>
+                                        <p className="text-sm font-medium text-gray-300">
+                                            {lang === 'uz' ? 'Boshqalar qo\'shilishi kutilmoqda...' : lang === 'ru' ? 'Ожидание участников...' : 'Waiting for others to join…'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* ─── Tile Grid ─── */}
                             <div className={`flex-1 min-h-0 grid gap-1 xs:gap-1.5 sm:gap-2 md:gap-2.5 auto-rows-fr p-1 xs:p-1.5 sm:p-3 md:p-5
@@ -1648,19 +1775,27 @@ const RoomPage = () => {
                                 animate-in fade-in zoom-in-95 duration-400`}
                             >
                                 {/* Local user tile */}
+                                {(() => {
+                                    const isSpeakingLocal = activeSpeakers.has('__local__');
+                                    return (
                                 <div className={`relative min-h-[140px] xs:min-h-[160px] sm:min-h-0 rounded-xl sm:rounded-2xl overflow-hidden transition-all duration-300 group
                                     bg-[#0d1018]
-                                    ${isHost
-                                        ? 'ring-2 ring-blue-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
-                                        : isCoHost
-                                            ? 'ring-2 ring-emerald-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
-                                            : 'ring-1 ring-white/8 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:ring-blue-500/30'
+                                    ${isSpeakingLocal
+                                        ? 'ring-2 ring-emerald-400/70 shadow-[0_0_16px_rgba(52,211,153,0.2)]'
+                                        : isHost
+                                            ? 'ring-2 ring-blue-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                                            : isCoHost
+                                                ? 'ring-2 ring-emerald-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                                                : isDark
+                                                    ? 'ring-1 ring-white/8 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:ring-blue-500/30'
+                                                    : 'ring-1 ring-gray-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:ring-blue-500/40'
                                     }`}>
                                     <Video
                                         stream={stream}
                                         userName={`${userInfo.name} (You)`}
                                         role={myRole}
                                         isLocal={true}
+                                        isSpeaking={isSpeakingLocal}
                                         userVideoStatus={!isVideoOff}
                                     />
                                     {/* Top-left badges */}
@@ -1690,6 +1825,8 @@ const RoomPage = () => {
                                         )}
                                     </div>
                                 </div>
+                                    );
+                                })()}
 
                                 {/* Remote participant tiles */}
                                 {uniquePeers.map((peerObj, index) => {
@@ -1698,18 +1835,23 @@ const RoomPage = () => {
                                     const isUserHost = user?.role === 'host';
                                     const isUserCoHost = user?.role === 'cohost';
                                     const hasTurn = peerObj.userId === currentTurnUserId;
+                                    const isSpeakingRemote = activeSpeakers.has(peerObj.peerID);
                                     return (
                                         <div
                                             key={peerObj.peerID || index}
                                             className={`relative min-h-[140px] xs:min-h-[160px] sm:min-h-0 rounded-xl sm:rounded-2xl overflow-hidden transition-all duration-300 group animate-in fade-in zoom-in-95 duration-400
                                                 bg-[#0d1018]
-                                                ${isUserHost
-                                                    ? 'ring-2 ring-blue-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
-                                                    : isUserCoHost
-                                                        ? 'ring-2 ring-emerald-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
-                                                        : hasTurn
-                                                            ? 'ring-2 ring-amber-500/50 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
-                                                            : 'ring-1 ring-white/8 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:ring-blue-500/30'
+                                                ${isSpeakingRemote
+                                                    ? 'ring-2 ring-emerald-400/70 shadow-[0_0_16px_rgba(52,211,153,0.2)]'
+                                                    : isUserHost
+                                                        ? 'ring-2 ring-blue-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                                                        : isUserCoHost
+                                                            ? 'ring-2 ring-emerald-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                                                            : hasTurn
+                                                                ? 'ring-2 ring-amber-500/50 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                                                                : isDark
+                                                                    ? 'ring-1 ring-white/8 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:ring-blue-500/30'
+                                                                    : 'ring-1 ring-gray-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:ring-blue-500/40'
                                                 }`}
                                         >
                                             <Video
@@ -1717,6 +1859,7 @@ const RoomPage = () => {
                                                 userName={user?.userName || 'Participant'}
                                                 role={user?.role}
                                                 hasTurn={hasTurn}
+                                                isSpeaking={isSpeakingRemote}
                                                 isLocal={false}
                                                 userVideoStatus={user?.videoStatus !== false}
                                             />
@@ -1769,16 +1912,16 @@ const RoomPage = () => {
 
                 {/* Sidebar (Chat/Members) */}
                 {(showChat || showParticipants) && (
-                    <aside className={`absolute inset-y-0 right-0 w-full sm:w-[320px] z-50 md:static md:w-[280px] lg:w-[320px] shrink-0 h-full bg-[#0d0f15] border-l border-white/6 flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.6)] animate-in slide-in-from-right duration-300`}>
+                    <aside className={`absolute inset-y-0 right-0 w-full sm:w-[320px] z-50 md:static md:w-[280px] lg:w-[320px] shrink-0 h-full flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.6)] animate-in slide-in-from-right duration-300 ${isDark ? 'bg-[#0d0f15] border-l border-white/6' : 'bg-white border-l border-gray-200'}`}>
                         {/* Sidebar Header — Zoom style */}
                         {showParticipants && (
-                            <div className="shrink-0 flex items-center justify-between px-4 h-14 border-b border-white/6">
-                                <h2 className="text-sm font-semibold text-white">
+                            <div className={`shrink-0 flex items-center justify-between px-4 h-14 border-b ${isDark ? 'border-white/6' : 'border-gray-200'}`}>
+                                <h2 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     {t('ctl_people')} <span className="text-gray-500 font-medium">({roomUsers.length})</span>
                                 </h2>
                                 <button
                                     onClick={() => setShowParticipants(false)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/8 transition-colors"
+                                    className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/8' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
                                     title={t('chat_close')}
                                 >
                                     <X size={16} />
@@ -1815,7 +1958,7 @@ const RoomPage = () => {
                                         placeholder={t('find_participant')} 
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-[11px] font-bold text-white focus:outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 transition-all placeholder:text-gray-600"
+                                        className={`w-full rounded-xl py-2.5 pl-9 pr-3 text-[11px] font-bold focus:outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 transition-all ${isDark ? 'bg-white/5 border border-white/10 text-white placeholder:text-gray-600' : 'bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400'}`}
                                     />
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-1.5 pb-4 pr-0.5 custom-scrollbar">
@@ -1832,7 +1975,8 @@ const RoomPage = () => {
                                             return (
                                             <div key={idx} className={`group flex items-center gap-3 px-3 py-2.5 rounded-2xl border transition-all duration-200 cursor-default
                                                 ${isSpotlit ? 'bg-blue-500/10 border-blue-500/25 shadow-[0_0_12px_rgba(59,130,246,0.08)]'
-                                                : 'bg-white/4 border-white/5 hover:bg-white/8 hover:border-white/10'}`}>
+                                                : isDark ? 'bg-white/4 border-white/5 hover:bg-white/8 hover:border-white/10'
+                                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
                                                 {/* Avatar */}
                                                 <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-[11px] font-black text-white shadow-md shrink-0 select-none`}>
                                                     {userInitials}
@@ -1840,7 +1984,7 @@ const RoomPage = () => {
                                                 {/* Info */}
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1.5 min-w-0">
-                                                        <span className="text-[12px] font-semibold text-white/90 truncate">{user.userName}</span>
+                                                        <span className={`text-[12px] font-semibold truncate ${isDark ? 'text-white/90' : 'text-gray-900'}`}>{user.userName}</span>
                                                         {isMe && <span className="shrink-0 text-[9px] text-gray-500 font-medium">{t('you_label')}</span>}
                                                         {handRaisedUsers.includes(user.userId) && <span className="shrink-0 text-[11px]">✋</span>}
                                                     </div>
@@ -1878,10 +2022,10 @@ const RoomPage = () => {
                                         );})}
                                 </div>
                                 {canModerate && (
-                                    <div className="pb-4 pt-3 border-t border-white/5">
+                                    <div className={`pb-4 pt-3 border-t ${isDark ? 'border-white/5' : 'border-gray-200'}`}>
                                         <button
                                             onClick={muteAll}
-                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/5 hover:bg-red-500/15 text-gray-300 hover:text-red-400 text-xs font-bold rounded-xl transition-colors duration-200"
+                                            className={`w-full flex items-center justify-center gap-2 py-2.5 hover:bg-red-500/15 hover:text-red-400 text-xs font-bold rounded-xl transition-colors duration-200 ${isDark ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
                                         >
                                             <MicOff size={13} />
                                             {t('mute_everyone')}

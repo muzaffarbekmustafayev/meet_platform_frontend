@@ -32,11 +32,11 @@ const getInitials = (name = '') =>
 // ── Date Badge ─────────────────────────────────────────────────────────────────
 const DateBadge = ({ label }) => (
     <div className="flex items-center gap-3 my-4 px-2">
-        <div className="flex-1 h-px bg-gray-200 dark:bg-white/6" />
+        <div className="flex-1 h-px bg-gray-200 dark:bg-white/8" />
         <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest select-none px-1">
             {label}
         </span>
-        <div className="flex-1 h-px bg-gray-200 dark:bg-white/6" />
+        <div className="flex-1 h-px bg-gray-200 dark:bg-white/8" />
     </div>
 );
 
@@ -54,7 +54,7 @@ const Avatar = ({ name, size = 'sm' }) => {
 
 // ── Message Bubble ─────────────────────────────────────────────────────────────
 const MessageBubble = ({ msg, isOwn, prevMsg, onEdit, onDelete, canAct }) => {
-    const { t } = useContext(ThemeLanguageContext);
+    const { t, theme } = useContext(ThemeLanguageContext);
     const [hovered, setHovered] = useState(false);
 
     // Show avatar only when sender changes (group messages)
@@ -70,7 +70,7 @@ const MessageBubble = ({ msg, isOwn, prevMsg, onEdit, onDelete, canAct }) => {
             {/* Sender name — only on first message in group */}
             {!isOwn && senderChanged && (
                 <div className="flex items-center gap-2 mb-1.5 ml-9">
-                    <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 select-none">
+                    <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 select-none">
                         {msg.userName}
                     </span>
                 </div>
@@ -108,41 +108,50 @@ const MessageBubble = ({ msg, isOwn, prevMsg, onEdit, onDelete, canAct }) => {
                 )}
 
                 {/* Bubble */}
-                <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed transition-all
-                    ${isOwn
-                        ? 'bg-blue-600 text-white rounded-2xl rounded-tr-sm shadow-md shadow-blue-500/20'
-                        : 'bg-white dark:bg-[#1e2230] text-gray-800 dark:text-gray-100 border border-gray-100 dark:border-white/8 rounded-2xl rounded-tl-sm shadow-sm'
-                    }`}
+                <div
+                    className={`relative px-3.5 py-2.5 text-sm leading-relaxed transition-all
+                        ${isOwn
+                            ? 'bg-blue-600 rounded-2xl rounded-tr-sm shadow-md shadow-blue-500/20'
+                            : 'border rounded-2xl rounded-tl-sm shadow-sm'
+                        }`}
+                    style={isOwn ? { color: '#ffffff' } : {
+                        backgroundColor: theme === 'dark' ? '#272c3d' : '#ffffff',
+                        borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#e5e7eb',
+                        color: theme === 'dark' ? '#f1f5f9' : '#111827',
+                    }}
                 >
                     {/* File message */}
                     {msg.file ? (
                         <div className="flex items-center gap-3 py-0.5 min-w-[160px]">
                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
                                 ${isOwn ? 'bg-white/20' : 'bg-blue-50 dark:bg-blue-500/15'}`}>
-                                <FileText size={16} className={isOwn ? 'text-white' : 'text-blue-500 dark:text-blue-400'} />
+                                <FileText size={16} className={isOwn ? 'text-white' : 'text-blue-600 dark:text-blue-400'} />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className={`text-[11px] font-semibold truncate mb-1
-                                    ${isOwn ? 'text-white' : 'text-gray-800 dark:text-gray-100'}`}>
+                                <p className="text-[11px] font-semibold truncate mb-1" style={{ color: 'inherit' }}>
                                     {msg.file.name}
                                 </p>
                                 <a
                                     href={msg.file.data}
                                     download={msg.file.name}
                                     className={`text-[10px] font-medium underline underline-offset-2 transition-colors
-                                        ${isOwn ? 'text-blue-200 hover:text-white' : 'text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'}`}
+                                        ${isOwn ? 'text-blue-200 hover:text-white' : 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'}`}
                                 >
                                     {t('chat_download')}
                                 </a>
                             </div>
                         </div>
                     ) : (
-                        <span className="break-words whitespace-pre-wrap">{msg.text}</span>
+                        <span className="break-words whitespace-pre-wrap" style={{ color: 'inherit' }}>
+                            {msg.text}
+                        </span>
                     )}
 
                     {/* Time + read status */}
-                    <div className={`flex items-center gap-1 mt-1.5 justify-end select-none
-                        ${isOwn ? 'text-blue-200/70' : 'text-gray-400 dark:text-gray-500'}`}>
+                    <div
+                        className="flex items-center gap-1 mt-1.5 justify-end select-none"
+                        style={{ color: isOwn ? 'rgba(191,219,254,0.8)' : (theme === 'dark' ? '#9ca3af' : '#6b7280') }}
+                    >
                         <span className="text-[9px] font-medium">{msg.time}</span>
                         {isOwn && <CheckCheck size={11} />}
                     </div>
@@ -161,7 +170,7 @@ const ChatPanel = ({
     deleteChatMessage, startEditingMessage, onClose,
     roomUsers, currentUserName, canChat, meetingTitle,
 }) => {
-    const { t } = useContext(ThemeLanguageContext);
+    const { t, theme } = useContext(ThemeLanguageContext);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const bodyRef = useRef(null);
@@ -193,16 +202,16 @@ const ChatPanel = ({
     const onlineCount = roomUsers?.length ?? 0;
 
     return (
-        <div className="flex flex-col h-full bg-[#0d0f15] text-gray-100 select-text">
+        <div className="flex flex-col h-full bg-white dark:bg-[#0d0f15] text-gray-800 dark:text-gray-100 select-text transition-colors">
 
-            {/* ── Header — Zoom style ── */}
-            <div className="shrink-0 flex items-center justify-between px-4 h-14 border-b border-white/6">
-                <h2 className="text-sm font-semibold text-white">
-                    {t('ctl_chat')} <span className="text-gray-500 font-medium">({onlineCount})</span>
+            {/* ── Header ── */}
+            <div className="shrink-0 flex items-center justify-between px-4 h-14 border-b border-gray-100 dark:border-white/6">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {t('ctl_chat')} <span className="text-gray-400 dark:text-gray-500 font-medium">({onlineCount})</span>
                 </h2>
                 <button
                     onClick={onClose}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/8 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8 transition-colors"
                     title={t('chat_close')}
                 >
                     <X size={16} />
@@ -213,15 +222,15 @@ const ChatPanel = ({
             <div
                 ref={bodyRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-3 py-2 flex flex-col custom-scrollbar"
+                className="flex-1 overflow-y-auto px-3 py-2 flex flex-col custom-scrollbar bg-gray-100 dark:bg-[#0d0f15]"
             >
                 {groupedMessages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
-                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-4">
-                            <MessageSquare size={24} className="text-gray-600" />
+                        <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/8 flex items-center justify-center mb-4">
+                            <MessageSquare size={24} className="text-gray-400 dark:text-gray-600" />
                         </div>
-                        <p className="text-gray-400 text-sm font-semibold">{t('chat_empty_title')}</p>
-                        <p className="text-gray-600 text-xs mt-1.5 leading-relaxed max-w-[180px]">
+                        <p className="text-gray-500 dark:text-gray-400 text-sm font-semibold">{t('chat_empty_title')}</p>
+                        <p className="text-gray-400 dark:text-gray-600 text-xs mt-1.5 leading-relaxed max-w-[180px]">
                             {t('chat_empty_sub')}
                         </p>
                     </div>
@@ -286,13 +295,16 @@ const ChatPanel = ({
                                 value={newMessage}
                                 onChange={(e) => setNewMessage(e.target.value)}
                                 placeholder={editingMessageId ? t('chat_input_edit_placeholder') : t('chat_input_placeholder')}
-                                style={{ color: '#f1f5f9', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                                style={{
+                                    color: theme === 'dark' ? '#f1f5f9' : '#111827',
+                                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.07)' : '#f3f4f6',
+                                }}
                                 className={`w-full rounded-xl px-4 py-2.5 text-sm border transition-all duration-150
-                                    placeholder:text-gray-500
+                                    placeholder:text-gray-400
                                     focus:outline-none focus:ring-2
                                     ${editingMessageId
-                                        ? 'border-amber-500/40 focus:ring-amber-400/25 focus:border-amber-500/60'
-                                        : 'border-white/8 focus:ring-blue-500/25 focus:border-blue-500/50'
+                                        ? 'border-amber-400 focus:ring-amber-400/25 focus:border-amber-500'
+                                        : 'border-gray-200 dark:border-white/8 focus:ring-blue-500/25 focus:border-blue-500'
                                     }`}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) { sendMessage(e); }
@@ -318,7 +330,7 @@ const ChatPanel = ({
                     </form>
                 ) : (
                     <div className="flex items-center justify-center gap-2 py-2">
-                        <div className="w-4 h-4 rounded-full bg-gray-200 dark:bg-white/8 flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-full bg-gray-100 dark:bg-white/8 flex items-center justify-center">
                             <X size={8} className="text-gray-400" />
                         </div>
                         <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
@@ -329,7 +341,7 @@ const ChatPanel = ({
 
                 {/* Hint */}
                 {canChat && !editingMessageId && (
-                    <p className="text-center text-[10px] text-gray-300 dark:text-gray-700 mt-1.5 select-none">
+                    <p className="text-center text-[10px] text-gray-400 dark:text-gray-700 mt-1.5 select-none">
                         {t('chat_send_hint')}
                     </p>
                 )}

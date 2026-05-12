@@ -31,7 +31,8 @@ const RoomBottomControls = ({
     mobileMenuOpen,
     setMobileMenuOpen,
 }) => {
-    const { t } = useContext(ThemeLanguageContext);
+    const { t, theme } = useContext(ThemeLanguageContext);
+    const isDark = theme === 'dark';
 
     // ── Mic hold-to-talk ──
     const holdTimerRef = useRef(null);
@@ -121,16 +122,16 @@ const RoomBottomControls = ({
                 ? 'bg-red-500/90 hover:bg-red-500 shadow-md shadow-red-900/20'
                 : active
                     ? 'bg-blue-600/25 hover:bg-blue-600/35 ring-1 ring-blue-500/40'
-                    : 'bg-white/10 hover:bg-white/16';
+                    : isDark ? 'bg-white/10 hover:bg-white/16' : 'bg-gray-100 hover:bg-gray-200';
 
-        const iconColor = red || danger ? 'text-white' : active ? 'text-blue-400' : 'text-gray-300';
+        const iconColor = red || danger ? 'text-white' : active ? 'text-blue-500' : isDark ? 'text-gray-300' : 'text-gray-600';
         const labelColor = red
             ? 'text-red-400'
             : danger
                 ? 'text-red-400'
                 : active
-                    ? 'text-blue-400'
-                    : 'text-gray-500';
+                    ? 'text-blue-500'
+                    : isDark ? 'text-gray-500' : 'text-gray-500';
 
         return (
             <div className="flex flex-col items-center gap-1">
@@ -169,7 +170,7 @@ const RoomBottomControls = ({
     };
 
     return (
-        <div className="relative z-50 bg-[#13151c] border-t border-white/[0.06] shrink-0">
+        <div className={`relative z-50 shrink-0 ${isDark ? 'bg-[#13151c] border-t border-white/[0.06]' : 'bg-white border-t border-gray-200'}`}>
             {/* ── Desktop / Tablet bar ── */}
             <div className="hidden sm:flex items-center justify-between px-4 lg:px-6 py-3">
 
@@ -178,7 +179,7 @@ const RoomBottomControls = ({
                     <button
                         type="button"
                         onClick={() => { navigator.clipboard.writeText(roomID); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/8 border border-white/8 transition-all group"
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all group ${isDark ? 'bg-white/5 hover:bg-white/8 border border-white/8' : 'bg-gray-100 hover:bg-gray-200 border border-gray-200'}`}
                     >
                         {copied
                             ? <Check size={13} className="text-emerald-400 shrink-0" />
@@ -186,7 +187,7 @@ const RoomBottomControls = ({
                         }
                         <div className="flex flex-col items-start min-w-0">
                             <span className="text-[8px] font-bold uppercase tracking-widest text-gray-600">{t('ctl_meeting_id') || 'Meeting ID'}</span>
-                            <span className={`text-[11px] font-mono font-bold tracking-wider truncate transition-colors max-w-[100px] ${copied ? 'text-emerald-400' : 'text-gray-400 group-hover:text-white'}`}>
+                            <span className={`text-[11px] font-mono font-bold tracking-wider truncate transition-colors max-w-[100px] ${copied ? 'text-emerald-400' : isDark ? 'text-gray-400 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-900'}`}>
                                 {copied ? (t('ctl_copied') || 'Copied!') : roomID}
                             </span>
                         </div>
@@ -216,7 +217,7 @@ const RoomBottomControls = ({
                                 titleProp={isVideoOff ? (t('ctl_start_video') || 'Start Video') : (t('ctl_stop_video') || 'Stop Video')}
                             />
 
-                            <div className="w-px h-8 bg-white/10 mx-1" />
+                            <div className={`w-px h-8 mx-1 ${isDark ? 'bg-white/10' : 'bg-gray-200'}`} />
 
                             <Btn
                                 icon={isSharingScreen ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
@@ -283,19 +284,19 @@ const RoomBottomControls = ({
                             <span className="hidden lg:inline">{t('ctl_leave') || 'Leave'}</span>
                         </button>
                         {isHost && leaveMenuOpen && (
-                            <div className="absolute bottom-full right-0 mb-3 w-64 bg-[#1e2028] border border-white/10 rounded-2xl p-2 shadow-2xl z-[60] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            <div className={`absolute bottom-full right-0 mb-3 w-64 rounded-2xl p-2 shadow-2xl z-[60] animate-in fade-in slide-in-from-bottom-2 duration-200 ${isDark ? 'bg-[#1e2028] border border-white/10' : 'bg-white border border-gray-200'}`}>
                                 <button
                                     onClick={() => { setLeaveMenuOpen(false); endMeetingForAll?.(); }}
-                                    className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:text-white hover:bg-red-600/25 rounded-xl transition-colors"
+                                    className="w-full text-left px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
                                 >
                                     {t('leave_end_all') || 'End meeting for all'}
-                                    <span className="block text-[10px] font-medium text-gray-500 mt-0.5">
+                                    <span className="block text-[10px] font-medium text-gray-400 mt-0.5">
                                         {t('leave_end_all_sub') || 'Removes everyone from the meeting'}
                                     </span>
                                 </button>
                                 <button
                                     onClick={() => { setLeaveMenuOpen(false); leaveRoom(); }}
-                                    className="w-full text-left px-4 py-3 text-xs font-semibold text-gray-200 hover:text-white hover:bg-white/8 rounded-xl transition-colors mt-1"
+                                    className={`w-full text-left px-4 py-3 text-xs font-semibold rounded-xl transition-colors mt-1 ${isDark ? 'text-gray-200 hover:text-white hover:bg-white/8' : 'text-gray-700 hover:bg-gray-50'}`}
                                 >
                                     {t('leave_only_me') || 'Leave meeting'}
                                     <span className="block text-[10px] font-medium text-gray-500 mt-0.5">
@@ -393,19 +394,19 @@ const RoomBottomControls = ({
                         </span>
                     </button>
                     {isHost && leaveMenuOpen && (
-                        <div className="absolute bottom-full right-0 mb-3 w-64 bg-[#1e2028] border border-white/10 rounded-2xl p-2 shadow-2xl z-[60] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div className={`absolute bottom-full right-0 mb-3 w-64 rounded-2xl p-2 shadow-2xl z-[60] animate-in fade-in slide-in-from-bottom-2 duration-200 ${isDark ? 'bg-[#1e2028] border border-white/10' : 'bg-white border border-gray-200'}`}>
                             <button
                                 onClick={() => { setLeaveMenuOpen(false); endMeetingForAll?.(); }}
-                                className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:text-white hover:bg-red-600/25 rounded-xl transition-colors"
+                                className="w-full text-left px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
                             >
                                 {t('leave_end_all') || 'End meeting for all'}
-                                <span className="block text-[10px] font-medium text-gray-500 mt-0.5">
+                                <span className="block text-[10px] font-medium text-gray-400 mt-0.5">
                                     {t('leave_end_all_sub') || 'Removes everyone from the meeting'}
                                 </span>
                             </button>
                             <button
                                 onClick={() => { setLeaveMenuOpen(false); leaveRoom(); }}
-                                className="w-full text-left px-4 py-3 text-xs font-semibold text-gray-200 hover:text-white hover:bg-white/8 rounded-xl transition-colors mt-1"
+                                className={`w-full text-left px-4 py-3 text-xs font-semibold rounded-xl transition-colors mt-1 ${isDark ? 'text-gray-200 hover:text-white hover:bg-white/8' : 'text-gray-700 hover:bg-gray-50'}`}
                             >
                                 {t('leave_only_me') || 'Leave meeting'}
                                 <span className="block text-[10px] font-medium text-gray-500 mt-0.5">
@@ -421,18 +422,18 @@ const RoomBottomControls = ({
             {mobileMenuOpen && (
                 <div
                     role="menu"
-                    className="absolute bottom-full right-2 mb-2 w-64 rounded-2xl border border-white/10 bg-[#1e2028] shadow-2xl p-2 sm:hidden z-50 animate-in slide-in-from-bottom-2 fade-in duration-200"
+                    className={`absolute bottom-full right-2 mb-2 w-64 rounded-2xl shadow-2xl p-2 sm:hidden z-50 animate-in slide-in-from-bottom-2 fade-in duration-200 ${isDark ? 'border border-white/10 bg-[#1e2028]' : 'border border-gray-200 bg-white'}`}
                 >
                     <button
                         onClick={() => { raiseHand(); setMobileMenuOpen(false); }}
-                        className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/8 transition-colors"
+                        className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isDark ? 'text-gray-200 hover:bg-white/8' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
                         <Hand size={15} className="text-amber-400 shrink-0" />
                         {t('ctl_raise_hand') || 'Raise Hand'}
                     </button>
                     <button
                         onClick={() => { setMobileMenuOpen(false); handleShareClick(); }}
-                        className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isSharingScreen ? 'text-blue-400 bg-blue-500/10' : 'text-gray-200 hover:bg-white/8'}`}
+                        className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isSharingScreen ? 'text-blue-400 bg-blue-500/10' : isDark ? 'text-gray-200 hover:bg-white/8' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
                         {isSharingScreen
                             ? <MonitorOff size={15} className="text-blue-400 shrink-0" />
@@ -443,7 +444,7 @@ const RoomBottomControls = ({
                     {canRecord && (
                         <button
                             onClick={() => { isRecording ? stopRecording() : startRecording(); setMobileMenuOpen(false); }}
-                            className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isRecording ? 'text-red-400 bg-red-500/10' : 'text-gray-200 hover:bg-white/8'}`}
+                            className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${isRecording ? 'text-red-400 bg-red-500/10' : isDark ? 'text-gray-200 hover:bg-white/8' : 'text-gray-700 hover:bg-gray-50'}`}
                         >
                             {isRecording
                                 ? <StopCircle size={15} className="text-red-400 shrink-0" />
