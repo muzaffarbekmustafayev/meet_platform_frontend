@@ -107,6 +107,8 @@ const RoomPage = () => {
     const streamRef = useRef(null);
     const audioContextRef = useRef(null);
     const audioDestinationRef = useRef(null);
+    const micAudioCtxRef = useRef(null);   // Web Audio processing context for mic
+    const rawMicTrackRef = useRef(null);   // original getUserMedia audio track (kept alive for AudioContext)
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const messagesEndRef = useRef(null);
@@ -450,6 +452,19 @@ const RoomPage = () => {
                 currentStream.getAudioTracks().forEach(t => { t.enabled = micEnabled; });
                 currentStream.getVideoTracks().forEach(t => { t.enabled = videoEnabled; });
 
+                // Web Audio processing: HighPass → Compressor → Gain
+                const rawAudio = currentStream.getAudioTracks()[0];
+                if (rawAudio) {
+                    const result = buildAudioProcessingChain(rawAudio);
+                    if (result) {
+                        micAudioCtxRef.current = result.ctx;
+                        rawMicTrackRef.current = rawAudio;
+                        result.processedTrack.enabled = micEnabled;
+                        currentStream.removeTrack(rawAudio);
+                        currentStream.addTrack(result.processedTrack);
+                    }
+                }
+
                 setIsMuted(!micEnabled);
                 setIsVideoOff(!videoEnabled);
 
@@ -503,6 +518,16 @@ const RoomPage = () => {
                 socket.disconnect();
                 socketRef.current = null;
             }
+            // Mic audio processing context ni yopish
+            if (micAudioCtxRef.current) {
+                micAudioCtxRef.current.close().catch(() => {});
+                micAudioCtxRef.current = null;
+            }
+            // Raw mic track ni to'xtatish (hardware mic yoritgichini o'chiradi)
+            if (rawMicTrackRef.current) {
+                rawMicTrackRef.current.stop();
+                rawMicTrackRef.current = null;
+            }
             // Kamera va mikrofon yorug'ligini o'chirish
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
@@ -547,6 +572,47 @@ const RoomPage = () => {
             setWaitingToasts((current) => current.find((item) => item.socketId === newUser.socketId) ? current : [...current, newUser]);
         });
     }, [myRole, playNotificationSound, waitingRoomUsers]);
+
+    // Web Audio API: HighPass (80Hz) → DynamicsCompressor → Gain
+    // Raw track AudioContext uchun tirik qoladi; processed track streamga qo'shiladi.
+    function buildAudioProcessingChain(rawAudioTrack) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor || !rawAudioTrack) return null;
+        try {
+            const ctx = new AudioContextCtor({ sampleRate: 48000 });
+
+            // 80 Hz dan pastni kesadi: shovqin, g'uldirab turish, taxtadan zarbalar
+            const highPass = ctx.createBiquadFilter();
+            highPass.type = 'highpass';
+            highPass.frequency.value = 80;
+            highPass.Q.value = 0.7;
+
+            // Ovoz darajasini normalizatsiya qiladi: past ovozni ko'taradi, balandni pasaytiradi
+            const compressor = ctx.createDynamicsCompressor();
+            compressor.threshold.value = -24;  // dB: shu nuqtadan siqadi
+            compressor.knee.value = 30;         // o'tish yumshoq bo'ladi
+            compressor.ratio.value = 4;         // 4:1 — asta-sekin siqish, tabiiy eshitiladi
+            compressor.attack.value = 0.003;    // tez ishga tushadi (3ms)
+            compressor.release.value = 0.25;    // sekin qo'yib yuboradi (250ms)
+
+            // Umumiy balandlikni kompenasatsiya qilish (compressor pasaytirganini to'ldiradi)
+            const gain = ctx.createGain();
+            gain.gain.value = 1.3;
+
+            const destination = ctx.createMediaStreamDestination();
+            const source = ctx.createMediaStreamSource(new MediaStream([rawAudioTrack]));
+
+            source.connect(highPass);
+            highPass.connect(compressor);
+            compressor.connect(gain);
+            gain.connect(destination);
+
+            return { ctx, processedTrack: destination.stream.getAudioTracks()[0] };
+        } catch (e) {
+            console.error('Audio processing setup failed:', e);
+            return null;
+        }
+    }
 
     // FIX: socket passed as parameter (not module-level variable)
     // trickle: false — backend relays a single complete offer/answer per direction.
@@ -666,19 +732,40 @@ const RoomPage = () => {
                 }
             };
             const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-            const audioTrack = newStream.getAudioTracks()[0];
-            const oldTrack = streamRef.current.getAudioTracks()[0];
+            const rawNewAudio = newStream.getAudioTracks()[0];
+            const oldProcessedTrack = streamRef.current.getAudioTracks()[0];
+            const prevEnabled = oldProcessedTrack ? oldProcessedTrack.enabled : true;
 
-            // Preserve mute state across device switch
-            if (audioTrack && oldTrack) audioTrack.enabled = oldTrack.enabled;
+            // Eski audio processing context ni yopish
+            if (micAudioCtxRef.current) {
+                micAudioCtxRef.current.close().catch(() => {});
+                micAudioCtxRef.current = null;
+            }
+            if (rawMicTrackRef.current) {
+                rawMicTrackRef.current.stop();
+                rawMicTrackRef.current = null;
+            }
+
+            // Yangi qurilma uchun processing qayta qurish
+            let trackToUse = rawNewAudio;
+            if (rawNewAudio) {
+                const result = buildAudioProcessingChain(rawNewAudio);
+                if (result) {
+                    micAudioCtxRef.current = result.ctx;
+                    rawMicTrackRef.current = rawNewAudio;
+                    result.processedTrack.enabled = prevEnabled;
+                    trackToUse = result.processedTrack;
+                }
+            }
+
+            if (trackToUse) trackToUse.enabled = prevEnabled;
 
             peersRef.current.forEach(({ peer }) => {
-                if (oldTrack && audioTrack) peer.replaceTrack(oldTrack, audioTrack, streamRef.current);
+                if (oldProcessedTrack && trackToUse) peer.replaceTrack(oldProcessedTrack, trackToUse, streamRef.current);
             });
 
-            if (oldTrack) oldTrack.stop();
-            streamRef.current.removeTrack(oldTrack);
-            streamRef.current.addTrack(audioTrack);
+            if (oldProcessedTrack) streamRef.current.removeTrack(oldProcessedTrack);
+            if (trackToUse) streamRef.current.addTrack(trackToUse);
             setSelectedAudioDevice(deviceId);
         } catch (err) {
             console.error("Audio switch failed:", err);
